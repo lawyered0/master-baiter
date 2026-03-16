@@ -767,3 +767,55 @@ Especially effective with Confused Edna, but usable by any persona during tech s
 7. **Tandem deployment:** In long engagements, personas can reference each other. Brad can mention "my buddy Rich" (Wealthy But Cautious). Diane can mention "my friend Pat from work" (Helpful But Clueless). This creates opportunities to introduce a new persona as a "new character" the scammer can also target.
 8. **Natural handoff:** If switching mid-conversation, use a natural transition: "My grandson is going to help me from here" (Edna to Pat), "Let me have my financial advisor handle this" (Brad to Richard), "My friend wants to talk to you" (any to any).
 9. **Time maximization rule:** If a persona is actively wasting the scammer's time effectively, do NOT switch. The best persona is the one that's working.
+
+---
+
+## Anti-Bot-Detection Pipeline
+
+Every outbound message passes through a 3-script pipeline before sending. This is the primary defense against scammers detecting automation.
+
+### Layer 1: Response Delays (`delay_calculator.py`)
+
+**What it prevents:** Instant replies — the #1 bot tell.
+
+Each persona has a timing profile with base delay, per-character typing speed, and random jitter. Situational triggers (store runs, bank calls, wife talks) add minutes-to-hours of realistic absence. Time-of-day multipliers prevent suspicious 2am responses from a 78-year-old.
+
+### Layer 2: Text Humanization (`humanize_text.py`)
+
+**What it prevents:** Too-clean text — the #2 bot tell.
+
+Takes polished AI output and injects persona-appropriate imperfections:
+
+| Persona | Typo Rate | Key Behaviors |
+|---|---|---|
+| Confused Edna | 6% | Hunt-and-peck adjacent-key errors, tech malapropisms ("the Google", "Face-space"), ellipsis abuse, `*correction` follow-ups |
+| Eager Investor (Brad) | 2% | RANDOM CAPS when excited, autocorrect artifacts, minimal errors (he's a fast texter) |
+| Lonely Heart (Diane) | 2% | Emotional ellipses everywhere..., occasional autocorrect, `*correction` when flustered |
+| Counter-Scammer (Viktor) | 3% | Deliberate slightly-off English, calculated pauses |
+| Helpful But Clueless (Pat) | 5% | Frequent typos, autocorrect chaos, lots of `*corrections` — Pat is always fixing mistakes |
+| Wealthy But Cautious (Richard) | 1% | Near-perfect text — Richard proofreads before sending. Rare autocorrect slip. |
+
+**Degradation over time:** After message 20+, all personas get progressively sloppier (up to 60% more errors by message 40). Humans get tired; bots don't. This subtle signal matters in long engagements.
+
+**Malapropisms (Edna only):** Tech terms are automatically replaced: "browser" → "the Google", "email" → "the email machine", "link" → "the blue clicky words", "download" → "put it on the computer", "notification" → "the ding-ding".
+
+### Layer 3: Message Fragmentation (`fragment_message.py`)
+
+**What it prevents:** Single-paragraph responses — the #3 bot tell on chat/SMS platforms.
+
+Real people don't compose one perfect paragraph. Each persona has a distinct messaging cadence:
+
+| Persona | Fragment Rate | Style | Inter-Delay |
+|---|---|---|---|
+| Confused Edna | 35% | Sends message, then afterthought ("Oh and also dear...") | 8-25s |
+| Eager Investor (Brad) | 70% | Staccato bursts of 3-5 short messages ("Bro" / "OK so" / "Wait") | 2-8s |
+| Lonely Heart (Diane) | 30% | One long message, occasionally emotional overflow follow-up | 10-40s |
+| Counter-Scammer (Viktor) | 25% | One message, then a pointed follow-up ("Actually, one more question.") | 15-45s |
+| Helpful But Clueless (Pat) | 55% | Sends, realizes mistake, sends correction, gets confused again | 5-15s |
+| Wealthy But Cautious (Richard) | 15% | Rarely fragments — when he does, it's a formal addendum with a long pause | 30-90s |
+
+### Pipeline Order
+
+Always: **Compose clean → Humanize → Fragment → Delay → Send fragments → Log**
+
+The agent composes clean text (so the AI focuses on content), then the scripts handle making it sound human. This separation means the AI doesn't have to "try" to make typos — which LLMs are bad at doing consistently.
