@@ -18,7 +18,9 @@
             <a href="#" class="nav-link" data-view="intel">Intel Database</a>
             <a href="#" class="nav-link" data-view="reports">Reports</a>
             <a href="#" class="nav-link" data-view="analytics">Analytics</a>
+            <a href="#" class="nav-link" data-view="achievements">Achievements</a>
         </div>
+        <span class="level-badge" id="nav-level" title="Your level">Lv.0</span>
         <div class="nav-status">
             <span id="ws-status" class="status-dot disconnected"></span>
             <span id="ws-label">Disconnected</span>
@@ -219,6 +221,42 @@
                     <tbody id="top-scammers-body"></tbody>
                 </table>
             </div>
+        </div>
+        <!-- Achievements View -->
+        <div id="view-achievements" class="view">
+            <!-- Profile Banner -->
+            <div class="profile-banner" id="profile-banner">
+                <div class="profile-level">
+                    <span class="level-number" id="profile-level-num">0</span>
+                    <span class="level-title" id="profile-level-title">Bait Apprentice</span>
+                </div>
+                <div class="xp-progress-container">
+                    <div class="xp-progress-bar" id="xp-progress-bar" style="width: 0%"></div>
+                    <span class="xp-progress-label" id="xp-progress-label">0 / 100 XP</span>
+                </div>
+                <div class="profile-stats">
+                    <span id="profile-achievements-count">0 / 0 Achievements</span>
+                    <span id="profile-streak">Streak: 0</span>
+                    <span id="profile-total-xp">Total XP: 0</span>
+                </div>
+            </div>
+
+            <!-- Fun Stats Cards -->
+            <div class="summary-cards" id="fun-stats-cards"></div>
+
+            <!-- Achievement Category Tabs -->
+            <div class="achievement-tabs">
+                <button class="ach-tab active" data-category="">All</button>
+                <button class="ach-tab" data-category="time_wasting">Time Wasting</button>
+                <button class="ach-tab" data-category="intel">Intel</button>
+                <button class="ach-tab" data-category="reports">Reports</button>
+                <button class="ach-tab" data-category="personas">Personas</button>
+                <button class="ach-tab" data-category="engagement">Engagement</button>
+                <button class="ach-tab" data-category="hidden">Hidden</button>
+            </div>
+
+            <!-- Achievement Grid -->
+            <div class="achievement-grid" id="achievement-grid"></div>
         </div>
     </main>
 

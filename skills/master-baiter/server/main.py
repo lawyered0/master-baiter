@@ -35,6 +35,7 @@ from routes.evidence import router as evidence_router
 from routes.intel import router as intel_router
 from routes.reports import router as reports_router
 from routes.analytics import router as analytics_router
+from routes.gamification import router as gamification_router
 
 
 @asynccontextmanager
@@ -64,6 +65,7 @@ app.include_router(evidence_router)
 app.include_router(intel_router)
 app.include_router(reports_router)
 app.include_router(analytics_router)
+app.include_router(gamification_router)
 
 # Static frontend files
 FRONTEND_DIR = Path(__file__).resolve().parent / "frontend"

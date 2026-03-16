@@ -36,6 +36,7 @@ class Session(Base):
     evidence = relationship("EvidenceEntry", back_populates="session", cascade="all, delete-orphan")
     intel_items = relationship("IntelItem", back_populates="session", cascade="all, delete-orphan")
     reports = relationship("Report", back_populates="session", cascade="all, delete-orphan")
+    score_events = relationship("ScoreEvent", back_populates="session", cascade="all, delete-orphan")
 
 
 class EvidenceEntry(Base):
@@ -83,3 +84,32 @@ class Report(Base):
     file_path = Column(String, default="")
 
     session = relationship("Session", back_populates="reports")
+
+
+class ScoreEvent(Base):
+    __tablename__ = "score_events"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    session_id = Column(String, ForeignKey("sessions.id"), nullable=True)
+    event_type = Column(String, nullable=False)
+    xp_base = Column(Integer, default=0)
+    xp_multiplier = Column(String, default="1.0")
+    xp_awarded = Column(Integer, default=0)
+    metadata_json = Column(Text, default="{}")
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+    session = relationship("Session", back_populates="score_events")
+
+
+class Achievement(Base):
+    __tablename__ = "achievements"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    achievement_id = Column(String, nullable=False, unique=True)
+    name = Column(String, nullable=False)
+    description = Column(String, default="")
+    icon = Column(String, default="")
+    category = Column(String, default="")
+    xp_reward = Column(Integer, default=0)
+    unlocked_at = Column(DateTime, nullable=True)
+    session_id = Column(String, nullable=True)

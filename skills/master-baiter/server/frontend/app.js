@@ -67,6 +67,13 @@ function handleLiveUpdate(msg) {
             if (currentView === 'intel') loadIntel();
             showToast('New intel extracted', 'success');
             break;
+        case 'gamification_update':
+            if (data.event === 'achievement_unlocked') {
+                showAchievementToast(data.achievement);
+            }
+            if (currentView === 'achievements') loadAchievements();
+            updateNavLevel();
+            break;
     }
 }
 
@@ -122,10 +129,11 @@ function switchView(view) {
         v.classList.toggle('active', v.id === `view-${view}`)
     );
     switch (view) {
-        case 'sessions':  loadSessions(); break;
-        case 'intel':     loadIntel(); break;
-        case 'reports':   loadReports(); break;
-        case 'analytics': loadAnalytics(); break;
+        case 'sessions':     loadSessions(); break;
+        case 'intel':        loadIntel(); break;
+        case 'reports':      loadReports(); break;
+        case 'analytics':    loadAnalytics(); break;
+        case 'achievements': loadAchievements(); break;
     }
 }
 
@@ -622,18 +630,171 @@ document.addEventListener('keydown', e => {
     if (e.key === '2') switchView('intel');
     if (e.key === '3') switchView('reports');
     if (e.key === '4') switchView('analytics');
+    if (e.key === '5') switchView('achievements');
     if (e.key === 'r' && (e.ctrlKey || e.metaKey)) {
         e.preventDefault();
         switch (currentView) {
-            case 'sessions':  loadSessions(); break;
-            case 'intel':     loadIntel(); break;
-            case 'reports':   loadReports(); break;
-            case 'analytics': loadAnalytics(); break;
+            case 'sessions':     loadSessions(); break;
+            case 'intel':        loadIntel(); break;
+            case 'reports':      loadReports(); break;
+            case 'analytics':    loadAnalytics(); break;
+            case 'achievements': loadAchievements(); break;
         }
         showToast('Refreshed', 'info');
     }
 });
 
+// ─── Achievements View ──────────────────────────────────────────────────────
+let currentAchCategory = '';
+
+async function loadAchievements() {
+    const [profile, stats, achievements] = await Promise.all([
+        api('/api/gamification/profile'),
+        api('/api/gamification/stats'),
+        api(`/api/gamification/achievements${currentAchCategory ? `?category=${currentAchCategory}` : ''}`),
+    ]);
+
+    renderProfileBanner(profile);
+    renderFunStats(stats);
+    renderAchievementGrid(achievements.achievements || []);
+}
+
+function renderProfileBanner(p) {
+    document.getElementById('profile-level-num').textContent = p.level;
+    document.getElementById('profile-level-title').textContent = p.title;
+
+    const bar = document.getElementById('xp-progress-bar');
+    bar.style.width = `${Math.min(p.progress_percent, 100)}%`;
+
+    document.getElementById('xp-progress-label').textContent =
+        `${p.total_xp.toLocaleString()} / ${p.xp_for_next_level.toLocaleString()} XP`;
+
+    document.getElementById('profile-achievements-count').textContent =
+        `${p.achievements_unlocked} / ${p.achievements_total} Achievements`;
+    document.getElementById('profile-streak').textContent = `Streak: ${p.current_streak}`;
+    document.getElementById('profile-total-xp').textContent = `Total XP: ${p.total_xp.toLocaleString()}`;
+
+    // Update nav badge too
+    const badge = document.getElementById('nav-level');
+    if (badge) {
+        badge.textContent = `Lv.${p.level}`;
+        badge.title = p.title;
+    }
+}
+
+function renderFunStats(s) {
+    const cards = document.getElementById('fun-stats-cards');
+    cards.innerHTML = `
+        <div class="summary-card">
+            <div class="label">Scammer Time Wasted</div>
+            <div class="value orange">${s.total_time_wasted_human}</div>
+        </div>
+        <div class="summary-card">
+            <div class="label">Scammer Salary Burned</div>
+            <div class="value green">${s.scammer_salary_wasted}</div>
+        </div>
+        <div class="summary-card">
+            <div class="label">Intel Extracted</div>
+            <div class="value accent">${s.intel_collected}</div>
+        </div>
+        <div class="summary-card">
+            <div class="label">Reports Filed</div>
+            <div class="value">${s.reports_filed}</div>
+        </div>
+        <div class="summary-card">
+            <div class="label">Longest Session</div>
+            <div class="value">${s.longest_session_human}</div>
+        </div>
+        <div class="summary-card">
+            <div class="label">Fun Fact</div>
+            <div class="value fun-fact">${s.fun_fact}</div>
+        </div>
+    `;
+}
+
+function renderAchievementGrid(achievements) {
+    const grid = document.getElementById('achievement-grid');
+
+    if (!achievements.length) {
+        grid.innerHTML = '<div class="empty-state"><div class="icon">🏆</div><div class="message">No achievements in this category</div></div>';
+        return;
+    }
+
+    grid.innerHTML = achievements.map(a => `
+        <div class="achievement-card ${a.unlocked ? 'unlocked' : 'locked'}">
+            <div class="ach-icon">${a.icon}</div>
+            <div class="ach-info">
+                <div class="ach-name">${escapeHtml(a.name)}</div>
+                <div class="ach-desc">${escapeHtml(a.description)}</div>
+            </div>
+            <div class="ach-xp">+${a.xp_reward} XP</div>
+            ${a.unlocked ? `<div class="ach-unlocked-date">${formatTime(a.unlocked_at)}</div>` : ''}
+        </div>
+    `).join('');
+}
+
+function showAchievementToast(achievement) {
+    let container = document.getElementById('toast-container');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'toast-container';
+        container.style.cssText =
+            'position:fixed;top:68px;right:24px;z-index:200;display:flex;flex-direction:column;gap:8px;pointer-events:none;';
+        document.body.appendChild(container);
+    }
+
+    const toast = document.createElement('div');
+    toast.className = 'achievement-toast';
+    toast.style.cssText = `
+        background:var(--bg-card);border:2px solid var(--gold);border-radius:8px;padding:12px 18px;
+        display:flex;align-items:center;gap:10px;font-size:14px;opacity:0;transform:translateX(40px) scale(0.9);
+        transition:all 0.4s cubic-bezier(0.34,1.56,0.64,1);pointer-events:auto;
+        box-shadow:0 4px 20px rgba(251,191,36,0.3);
+    `;
+    toast.innerHTML = `
+        <span style="font-size:24px">${achievement.icon || '🏆'}</span>
+        <div>
+            <div style="color:var(--gold);font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:0.05em">Achievement Unlocked</div>
+            <div style="font-weight:600">${achievement.name}</div>
+        </div>
+        <span class="ach-xp-toast">+${achievement.xp_reward} XP</span>
+    `;
+    container.appendChild(toast);
+
+    requestAnimationFrame(() => {
+        toast.style.opacity = '1';
+        toast.style.transform = 'translateX(0) scale(1)';
+    });
+
+    setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateX(40px) scale(0.9)';
+        setTimeout(() => toast.remove(), 400);
+    }, 6000);
+}
+
+async function updateNavLevel() {
+    try {
+        const profile = await api('/api/gamification/profile');
+        const badge = document.getElementById('nav-level');
+        if (badge) {
+            badge.textContent = `Lv.${profile.level}`;
+            badge.title = profile.title;
+        }
+    } catch (e) { /* ignore */ }
+}
+
+// Achievement category tab clicks
+document.querySelectorAll('.ach-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+        document.querySelectorAll('.ach-tab').forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        currentAchCategory = tab.dataset.category;
+        loadAchievements();
+    });
+});
+
 // ─── Init ────────────────────────────────────────────────────────────────────
 connectWS();
 loadSessions();
+updateNavLevel();
