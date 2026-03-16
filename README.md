@@ -46,12 +46,18 @@ openclaw skills install master-baiter
 openclaw skills list | grep master-baiter
 ```
 
-### Launch the Dashboard
+### Try the Dashboard (with demo data)
 
 ```bash
-uv run ~/.openclaw/skills/master-baiter/server/main.py
+# Seed sample scam sessions so you can see the full UI immediately
+uv run skills/master-baiter/scripts/seed_demo.py
+
+# Launch the dashboard
+uv run skills/master-baiter/server/main.py
 # Open http://localhost:8147
 ```
+
+The demo seeds 5 realistic sessions: a romance scam on WhatsApp, a crypto pig butchering on Telegram, a tech support scam on Discord, an advance fee scam via email, and a sextortion attempt on Signal — each with extracted intel and full conversation transcripts.
 
 ## How It Works
 
