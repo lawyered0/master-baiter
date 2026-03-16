@@ -13,7 +13,7 @@ from pathlib import Path
 from sqlalchemy.orm import Session as DBSession
 from watchfiles import awatch, Change
 
-from models import Session, EvidenceEntry, IntelItem
+from models import Session, EvidenceEntry, IntelItem, Report
 from db import SessionLocal
 
 WORKSPACE = Path(os.environ.get("OPENCLAW_WORKSPACE", Path.home() / ".openclaw" / "workspace"))
@@ -137,6 +137,48 @@ def sync_intel(db: DBSession):
     db.commit()
 
 
+def sync_reports(db: DBSession, session_id: str):
+    """Sync report markdown files for a session into the database."""
+    reports_dir = BASE_DIR / "reports" / session_id
+    if not reports_dir.exists():
+        return
+
+    type_mapping = {
+        "ic3-complaint.md": "ic3",
+        "ftc-report.md": "ftc",
+        "ncmec-report.md": "ncmec",
+        "local-pd-tip.md": "local_pd",
+    }
+
+    for report_file in reports_dir.iterdir():
+        if not report_file.is_file() or not report_file.name.endswith(".md"):
+            continue
+
+        report_type = type_mapping.get(report_file.name)
+        if not report_type and report_file.name.startswith("platform-abuse-"):
+            report_type = "platform_abuse"
+
+        if not report_type:
+            continue
+
+        existing = db.query(Report).filter(
+            Report.session_id == session_id,
+            Report.report_type == report_type,
+        ).first()
+
+        if not existing:
+            mtime = datetime.fromtimestamp(report_file.stat().st_mtime, tz=timezone.utc)
+            db.add(Report(
+                session_id=session_id,
+                report_type=report_type,
+                status="draft",
+                generated_at=mtime,
+                file_path=str(report_file),
+            ))
+
+    db.commit()
+
+
 def full_sync():
     """Run a full sync of all workspace data into the database."""
     db = SessionLocal()
@@ -154,6 +196,13 @@ def full_sync():
                     sync_evidence(db, ev_dir.name)
 
         sync_intel(db)
+
+        # Sync reports
+        reports_dir = BASE_DIR / "reports"
+        if reports_dir.exists():
+            for rpt_dir in reports_dir.iterdir():
+                if rpt_dir.is_dir():
+                    sync_reports(db, rpt_dir.name)
     finally:
         db.close()
 
@@ -161,7 +210,7 @@ def full_sync():
 async def watch_workspace(broadcast_fn=None):
     """Watch workspace directory for changes and sync to database."""
     watch_dirs = []
-    for subdir in ["sessions", "evidence", "analytics"]:
+    for subdir in ["sessions", "evidence", "analytics", "reports"]:
         d = BASE_DIR / subdir
         d.mkdir(parents=True, exist_ok=True)
         watch_dirs.append(d)
@@ -191,5 +240,12 @@ async def watch_workspace(broadcast_fn=None):
                     sync_intel(db)
                     if broadcast_fn:
                         await broadcast_fn("intel_update", {})
+
+                # Report file created/updated
+                elif "reports" in path.parts and path.name.endswith(".md"):
+                    session_id = path.parent.name
+                    sync_reports(db, session_id)
+                    if broadcast_fn:
+                        await broadcast_fn("session_update", {"session_id": session_id})
         finally:
             db.close()
