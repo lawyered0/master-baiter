@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Master-Baiter Dashboard</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+</head>
+<body>
+    <nav id="nav">
+        <div class="nav-brand">
+            <span class="nav-emoji">🎣</span>
+            <span class="nav-title">Master-Baiter</span>
+        </div>
+        <div class="nav-links">
+            <a href="#" class="nav-link active" data-view="sessions">Sessions</a>
+            <a href="#" class="nav-link" data-view="intel">Intel Database</a>
+            <a href="#" class="nav-link" data-view="reports">Reports</a>
+            <a href="#" class="nav-link" data-view="analytics">Analytics</a>
+        </div>
+        <div class="nav-status">
+            <span id="ws-status" class="status-dot disconnected"></span>
+            <span id="ws-label">Disconnected</span>
+        </div>
+    </nav>
+
+    <main id="app">
+        <!-- Sessions View -->
+        <div id="view-sessions" class="view active">
+            <div class="view-header">
+                <h2>Active Sessions</h2>
+                <div class="filters">
+                    <select id="filter-status">
+                        <option value="">All Status</option>
+                        <option value="active">Active</option>
+                        <option value="paused">Paused</option>
+                        <option value="escalated">Escalated</option>
+                        <option value="closed">Closed</option>
+                    </select>
+                    <select id="filter-channel">
+                        <option value="">All Channels</option>
+                        <option value="whatsapp">WhatsApp</option>
+                        <option value="telegram">Telegram</option>
+                        <option value="discord">Discord</option>
+                        <option value="signal">Signal</option>
+                        <option value="email">Email</option>
+                    </select>
+                    <select id="filter-severity">
+                        <option value="">All Severity</option>
+                        <option value="1">1 - Low</option>
+                        <option value="2">2 - Medium</option>
+                        <option value="3">3 - High</option>
+                        <option value="4">4 - Critical</option>
+                        <option value="5">5 - Emergency</option>
+                    </select>
+                </div>
+            </div>
+            <table id="sessions-table">
+                <thead>
+                    <tr>
+                        <th>Channel</th>
+                        <th>Scam Type</th>
+                        <th>Severity</th>
+                        <th>Persona</th>
+                        <th>Status</th>
+                        <th>Messages</th>
+                        <th>Time Wasted</th>
+                        <th>Last Activity</th>
+                    </tr>
+                </thead>
+                <tbody id="sessions-body"></tbody>
+            </table>
+        </div>
+
+        <!-- Session Detail Modal -->
+        <div id="session-detail" class="modal hidden">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3 id="detail-title">Session Detail</h3>
+                    <button class="close-btn" onclick="closeDetail()">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div class="detail-grid">
+                        <div class="detail-transcript">
+                            <h4>Transcript</h4>
+                            <div id="transcript-feed"></div>
+                        </div>
+                        <div class="detail-sidebar">
+                            <div class="detail-info" id="detail-info"></div>
+                            <div class="detail-intel">
+                                <h4>Extracted Intel</h4>
+                                <div id="detail-intel-list"></div>
+                            </div>
+                            <div class="detail-actions">
+                                <button class="btn btn-warning" onclick="escalateSession()">Escalate</button>
+                                <button class="btn btn-danger" onclick="closeSession()">Close Session</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Intel View -->
+        <div id="view-intel" class="view">
+            <div class="view-header">
+                <h2>Intel Database</h2>
+                <div class="filters">
+                    <input type="text" id="intel-search" placeholder="Search phone, email, wallet..." class="search-input">
+                    <select id="intel-type-filter">
+                        <option value="">All Types</option>
+                        <option value="phone">Phone</option>
+                        <option value="email">Email</option>
+                        <option value="wallet">Wallet</option>
+                        <option value="bank_account">Bank Account</option>
+                        <option value="username">Username</option>
+                        <option value="name">Name</option>
+                    </select>
+                </div>
+            </div>
+            <table id="intel-table">
+                <thead>
+                    <tr>
+                        <th>Type</th>
+                        <th>Value</th>
+                        <th>Platform</th>
+                        <th>Sessions</th>
+                        <th>First Seen</th>
+                        <th>Last Seen</th>
+                    </tr>
+                </thead>
+                <tbody id="intel-body"></tbody>
+            </table>
+        </div>
+
+        <!-- Reports View -->
+        <div id="view-reports" class="view">
+            <div class="view-header">
+                <h2>Reports</h2>
+                <div class="filters">
+                    <select id="report-type-filter">
+                        <option value="">All Types</option>
+                        <option value="ic3">IC3</option>
+                        <option value="ftc">FTC</option>
+                        <option value="ncmec">NCMEC</option>
+                        <option value="local_pd">Local PD</option>
+                        <option value="platform_abuse">Platform Abuse</option>
+                    </select>
+                    <select id="report-status-filter">
+                        <option value="">All Status</option>
+                        <option value="draft">Draft</option>
+                        <option value="reviewed">Reviewed</option>
+                        <option value="submitted">Submitted</option>
+                    </select>
+                </div>
+            </div>
+            <table id="reports-table">
+                <thead>
+                    <tr>
+                        <th>Type</th>
+                        <th>Session</th>
+                        <th>Status</th>
+                        <th>Generated</th>
+                        <th>Submitted</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="reports-body"></tbody>
+            </table>
+        </div>
+
+        <!-- Report Detail Modal -->
+        <div id="report-detail" class="modal hidden">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3 id="report-detail-title">Report</h3>
+                    <button class="close-btn" onclick="closeReportDetail()">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <pre id="report-content"></pre>
+                    <div class="detail-actions">
+                        <button class="btn btn-primary" id="btn-mark-reviewed" onclick="markReportReviewed()">Mark Reviewed</button>
+                        <button class="btn btn-success" id="btn-mark-submitted" onclick="markReportSubmitted()">Mark Submitted</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Analytics View -->
+        <div id="view-analytics" class="view">
+            <div class="summary-cards" id="summary-cards"></div>
+            <div class="charts-grid">
+                <div class="chart-container">
+                    <h3>Sessions Over Time</h3>
+                    <canvas id="chart-trends"></canvas>
+                </div>
+                <div class="chart-container">
+                    <h3>Scam Type Breakdown</h3>
+                    <canvas id="chart-scam-types"></canvas>
+                </div>
+                <div class="chart-container">
+                    <h3>Time Wasted by Type</h3>
+                    <canvas id="chart-time-wasted"></canvas>
+                </div>
+                <div class="chart-container">
+                    <h3>Channel Distribution</h3>
+                    <canvas id="chart-channels"></canvas>
+                </div>
+            </div>
+            <div class="effectiveness-section">
+                <h3>Effectiveness Metrics</h3>
+                <div id="effectiveness-metrics"></div>
+                <h3>Top Scammer Identifiers</h3>
+                <table id="top-scammers-table">
+                    <thead>
+                        <tr><th>Type</th><th>Value</th><th>Sessions</th></tr>
+                    </thead>
+                    <tbody id="top-scammers-body"></tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>

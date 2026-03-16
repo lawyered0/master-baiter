@@ -1,0 +1,9 @@
+[project]
+name = "master-baiter-scripts"
+version = "1.0.0"
+description = "Evidence logging, hash verification, and report generation scripts"
+requires-python = ">=3.11"
+dependencies = []
+
+[tool.pytest.ini_options]
+testpaths = ["."]
