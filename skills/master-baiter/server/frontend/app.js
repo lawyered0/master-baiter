@@ -199,7 +199,7 @@ function escapeHtml(text) {
     if (!text) return '';
     const div = document.createElement('div');
     div.textContent = text;
-    return div.innerHTML;
+    return div.innerHTML.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
 // ─── Sessions View ───────────────────────────────────────────────────────────
@@ -289,7 +289,7 @@ async function loadSessionDetail(id) {
     const intelList = document.getElementById('detail-intel-list');
     if (session.intel?.length) {
         intelList.innerHTML = session.intel.map(i =>
-            `<span class="intel-chip" title="${i.platform || ''}">${i.type}: <strong>${escapeHtml(i.value)}</strong></span>`
+            `<span class="intel-chip" title="${escapeHtml(i.platform) || ''}">${escapeHtml(i.type)}: <strong>${escapeHtml(i.value)}</strong></span>`
         ).join('');
     } else {
         intelList.innerHTML = '<span style="color:var(--text-dim);font-size:12px">No intel extracted yet</span>';
@@ -347,7 +347,7 @@ async function loadIntel() {
         <tr onclick="viewIntelNetwork('${escapeHtml(i.value)}')" style="cursor:pointer">
             <td><span class="intel-type-badge type-${escapeHtml(i.type)}">${escapeHtml(i.type)}</span></td>
             <td class="mono"><strong>${escapeHtml(i.value)}</strong></td>
-            <td>${i.platform || '—'}</td>
+            <td>${escapeHtml(i.platform) || '—'}</td>
             <td>${i.session_count != null ? `<span class="session-count">${i.session_count}</span>` : (i.session_id ? escapeHtml(i.session_id.slice(0, 8)) + '…' : '—')}</td>
             <td>${formatTime(i.first_seen)}</td>
             <td>${formatTime(i.last_seen)}</td>

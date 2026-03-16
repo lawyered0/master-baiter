@@ -1,5 +1,6 @@
 """Gamification API routes — XP, levels, achievements, and fun stats."""
 
+import json
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -208,7 +209,7 @@ def _sync_achievements(db: DBSession, stats: dict, trigger_session_id: str | Non
             xp_base=ach["xp_reward"],
             xp_multiplier="1.0",
             xp_awarded=ach["xp_reward"],
-            metadata_json=f'{{"achievement_id": "{ach["id"]}"}}',
+            metadata_json=json.dumps({"achievement_id": ach["id"]}),
         ))
 
     if newly_unlocked:
@@ -392,10 +393,11 @@ def get_fun_stats(db: DBSession = Depends(get_db)):
 @router.post("/recalculate")
 def recalculate(db: DBSession = Depends(get_db)):
     """Full recalculation of all XP and achievements from session data."""
-    # Clear existing score events and achievements
+    # Clear existing score events and achievements (no commit yet —
+    # deletions and inserts should be in the same transaction so a
+    # crash doesn't leave the DB empty)
     db.query(ScoreEvent).delete()
     db.query(Achievement).delete()
-    db.commit()
 
     total_xp = 0
     all_sessions = db.query(Session).all()
@@ -439,7 +441,7 @@ def recalculate(db: DBSession = Depends(get_db)):
                     db.add(ScoreEvent(
                         session_id=sess.id, event_type="message_milestone",
                         xp_base=bonus, xp_multiplier="1.0", xp_awarded=bonus,
-                        metadata_json=f'{{"milestone": "{label}"}}',
+                        metadata_json=json.dumps({"milestone": label}),
                     ))
                     total_xp += bonus
 
@@ -461,7 +463,7 @@ def recalculate(db: DBSession = Depends(get_db)):
                     db.add(ScoreEvent(
                         session_id=sess.id, event_type="time_milestone",
                         xp_base=bonus, xp_multiplier="1.0", xp_awarded=bonus,
-                        metadata_json=f'{{"milestone": "{label}"}}',
+                        metadata_json=json.dumps({"milestone": label}),
                     ))
                     total_xp += bonus
 
@@ -473,7 +475,7 @@ def recalculate(db: DBSession = Depends(get_db)):
                 session_id=sess.id, event_type="intel_extracted",
                 xp_base=ev_intel["xp_base"], xp_multiplier=str(ev_intel["multiplier"]),
                 xp_awarded=ev_intel["xp_awarded"],
-                metadata_json=f'{{"intel_type": "{intel.type}"}}',
+                metadata_json=json.dumps({"intel_type": intel.type}),
             ))
             total_xp += ev_intel["xp_awarded"]
 

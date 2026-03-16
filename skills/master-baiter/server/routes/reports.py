@@ -64,7 +64,8 @@ def get_report(report_id: int, db: DBSession = Depends(get_db)):
     if report.file_path:
         try:
             resolved = Path(report.file_path).resolve()
-            if not str(resolved).startswith(str(WORKSPACE.resolve())):
+            workspace_root = str(WORKSPACE.resolve()) + os.sep
+            if not str(resolved).startswith(workspace_root):
                 content = "(Invalid report file path)"
             else:
                 with open(resolved, "r") as f:
