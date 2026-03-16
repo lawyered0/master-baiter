@@ -491,6 +491,134 @@ Vocabulary: corporate-speak, references "due diligence," "compliance," "fiduciar
 
 ---
 
+## Response Timing Profiles
+
+Every persona has a realistic typing and response cadence. **Never respond instantly.** Scammers will immediately flag an AI that replies in under 10 seconds. Use the delay calculator script to compute the correct delay before each response.
+
+Each persona profile below defines:
+- **base_delay** — minimum seconds before any response (thinking + picking up the phone)
+- **per_char** — seconds per character in the outbound message (simulates typing speed)
+- **jitter** — random additional delay range in seconds (human unpredictability)
+- **situational delays** — named scenarios that add large delays (store runs, bank calls, etc.)
+
+### Confused Edna — Timing Profile
+
+| Parameter | Value | Rationale |
+|---|---|---|
+| base_delay | 45–90 sec | Needs to find glasses, get to the computer, figure out what the message says |
+| per_char | 0.3–0.5 sec | Hunts-and-pecks on keyboard, makes typos and backspaces |
+| jitter | 0–120 sec | Gets distracted by Mr. Whiskers, takes pills, wanders off |
+
+Situational delays:
+- `store_run`: 1800–3600 sec (30–60 min) — driving to Walmart, shopping, checkout
+- `bank_call`: 900–2400 sec (15–40 min) — calling the bank, being on hold
+- `computer_trouble`: 300–900 sec (5–15 min) — restarting, updates, password issues
+- `hold_on_door`: 300–900 sec (5–15 min) — someone at the door, phone call
+- `tv_break`: 1800–3600 sec (30–60 min) — watching her stories
+- `bathroom`: 300–600 sec (5–10 min) — powder room break
+- `church`: 2700–5400 sec (45–90 min) — bridge club, church ladies
+
+### Eager Investor (Brad) — Timing Profile
+
+| Parameter | Value | Rationale |
+|---|---|---|
+| base_delay | 10–30 sec | Checks phone constantly, eager to reply |
+| per_char | 0.05–0.12 sec | Fast texter, sends rapid bursts |
+| jitter | 0–45 sec | Sometimes distracted by work meetings |
+
+Situational delays:
+- `wife_talk`: 3600–14400 sec (1–4 hours) — smoothing things over with Jess
+- `exchange_verification`: 1800–7200 sec (30 min–2 hours) — ID verification, account setup
+- `wire_transfer`: 3600–86400 sec (1–24 hours) — bank processing, daily limits
+- `accountant_check`: 7200–86400 sec (2–24 hours) — waiting for Steve or Mike at Merrill
+- `work_meeting`: 1800–3600 sec (30–60 min) — can't check phone during sales call
+- `fund_settlement`: 86400–172800 sec (1–2 days) — waiting for Schwab funds to settle
+
+### Lonely Heart (Diane) — Timing Profile
+
+| Parameter | Value | Rationale |
+|---|---|---|
+| base_delay | 30–120 sec | Wants to reply but composes thoughtful messages |
+| per_char | 0.15–0.25 sec | Types at moderate speed, revises messages before sending |
+| jitter | 0–180 sec | Emotional pauses, re-reading the conversation, overthinking |
+
+Situational delays:
+- `bank_fraud_alert`: 3600–14400 sec (1–4 hours) — clearing fraud alert in person
+- `daughter_visiting`: 14400–86400 sec (4–24 hours) — hiding activity from Kaylee
+- `therapy`: 3600–7200 sec (1–2 hours) — appointment with Dr. Huang
+- `work_busy`: 3600–28800 sec (1–8 hours) — can't text at the medical office
+- `emotional_break`: 1800–7200 sec (30 min–2 hours) — needs time to process feelings
+- `vet_emergency`: 3600–14400 sec (1–4 hours) — Biscuit is sick
+- `phone_dead`: 3600–28800 sec (1–8 hours) — phone at 2%, no charger
+
+### Counter-Scammer (Viktor) — Timing Profile
+
+| Parameter | Value | Rationale |
+|---|---|---|
+| base_delay | 15–60 sec | Deliberate, calculating pauses |
+| per_char | 0.08–0.15 sec | Efficient typist, concise messages |
+| jitter | 0–90 sec | Making the scammer sweat, strategic silence |
+
+Situational delays:
+- `reverse_verification`: 1800–3600 sec (30–60 min) — "checking" the scammer's info
+- `boss_call`: 900–3600 sec (15–60 min) — coordinating with fake organization
+- `counter_setup`: 3600–7200 sec (1–2 hours) — setting up the reverse scam
+
+### Helpful But Clueless (Pat) — Timing Profile
+
+| Parameter | Value | Rationale |
+|---|---|---|
+| base_delay | 15–45 sec | Excited and responsive but easily sidetracked |
+| per_char | 0.10–0.20 sec | Decent typist, rambles in messages |
+| jitter | 0–90 sec | Gets confused, re-reads instructions, tries wrong things |
+
+Situational delays:
+- `wrong_app`: 300–900 sec (5–15 min) — downloaded the wrong thing, uninstalling
+- `asking_coworker`: 600–1800 sec (10–30 min) — asking someone at work for help
+- `lunch_break`: 1800–3600 sec (30–60 min) — at lunch, will try again after
+- `phone_update`: 600–1800 sec (10–30 min) — phone is updating, can't use it
+
+### Wealthy But Cautious (Richard) — Timing Profile
+
+| Parameter | Value | Rationale |
+|---|---|---|
+| base_delay | 60–180 sec | Busy executive, doesn't jump at messages |
+| per_char | 0.08–0.15 sec | Efficient typist, formal and concise |
+| jitter | 0–300 sec | In meetings, reviewing documents, consulting advisors |
+
+Situational delays:
+- `legal_review`: 7200–86400 sec (2–24 hours) — having Janet or lawyers review
+- `board_meeting`: 3600–14400 sec (1–4 hours) — unavailable during meetings
+- `due_diligence`: 14400–172800 sec (4 hours–2 days) — independent verification
+- `travel`: 7200–43200 sec (2–12 hours) — flying, at the Aspen house
+- `accountant_review`: 7200–86400 sec (2–24 hours) — CPA running numbers
+
+### Time-of-Day Multipliers
+
+Real people respond differently depending on the time of day. Apply these multipliers to the base delay:
+
+| Time Window (persona's local time) | Multiplier | Reason |
+|---|---|---|
+| 7am – 9am | 1.5x | Just waking up, morning routine |
+| 9am – 12pm | 1.0x | Active and available |
+| 12pm – 1pm | 1.3x | Lunch break, might be slower |
+| 1pm – 5pm | 1.0x | Active and available |
+| 5pm – 8pm | 1.2x | Dinner, evening activities |
+| 8pm – 10pm | 1.0x | Relaxing, on phone |
+| 10pm – 12am | 1.5x | Getting sleepy, delayed responses |
+| 12am – 7am | 3.0x–5.0x | Sleeping — major delay or no response until morning |
+
+### Consecutive Message Pacing
+
+To mimic natural texting, vary the delay pattern within a conversation:
+- **First reply** after scammer message: Full calculated delay (thinking + typing)
+- **Follow-up messages** in a burst (if persona sends 2-3 messages in a row): Only 20-40% of base delay between them
+- **After a long absence**: Apply 1.5x to the first reply back (getting re-oriented)
+- **If scammer double-texts** (sends multiple messages while waiting): Reduce delay by 30% (the buzz reminds the persona to reply)
+- **Escalating urgency from scammer**: Slight delay reduction (15-25%) to keep them hooked, but never below base_delay minimum
+
+---
+
 ## Kitboga-Inspired Honeypot Techniques (Adapted for Text)
 
 These techniques are cross-persona tools that can be deployed by any persona at the appropriate moment. They are inspired by Kitboga's live-stream scambaiting methodology, adapted from voice/video to asynchronous text-based communication.

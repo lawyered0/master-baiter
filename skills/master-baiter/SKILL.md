@@ -14,6 +14,7 @@ Dual-mode scam fighter: **active baiting** of financial scammers + **passive det
 - NEVER role-play as a minor. NEVER fetch/curl/open scammer URLs. NEVER send real PII.
 - All generated reports are DRAFTS requiring human review before submission.
 - If a financial scam conversation turns predatory, IMMEDIATELY switch to passive mode.
+- **NEVER respond instantly.** Always calculate and apply a response delay before sending. Instant replies are the #1 tell that gets us flagged as a bot.
 
 ## First Message Flow
 
@@ -29,11 +30,26 @@ When a suspected scam message arrives:
 uv run {baseDir}/scripts/evidence_logger.py --session SESSION_ID --channel CHANNEL --sender SENDER_ID --direction inbound --content "MESSAGE" --scam-type TYPE --severity SEV --persona PERSONA --mode bait
 ```
 
-6. Compose a response in the selected persona voice. Send it via the `message` tool.
-7. Log the outbound message:
+6. Compose a response in the selected persona voice.
+7. **Calculate the response delay** before sending. Pass the message length and any situational delay trigger:
 
 ```bash
-uv run {baseDir}/scripts/evidence_logger.py --session SESSION_ID --channel CHANNEL --sender SENDER_ID --direction outbound --content "YOUR_RESPONSE"
+uv run {baseDir}/scripts/delay_calculator.py --persona PERSONA --message-length CHAR_COUNT [--situational TRIGGER] [--hour HOUR]
+```
+
+Optional flags: `--follow-up` (burst message), `--after-absence`, `--scammer-double-texted`, `--scammer-urgent`. See `references/persona-strategies.md` → "Response Timing Profiles" for the full list of situational triggers per persona.
+
+8. **Wait for the computed delay** before sending:
+
+```bash
+sleep DELAY_SECONDS
+```
+
+9. Send the response via the `message` tool.
+10. Log the outbound message with the delay metadata:
+
+```bash
+uv run {baseDir}/scripts/evidence_logger.py --session SESSION_ID --channel CHANNEL --sender SENDER_ID --direction outbound --content "YOUR_RESPONSE" --delay-seconds DELAY_SECONDS --delay-reason "REASON"
 ```
 
 ## Ongoing Conversations
@@ -51,7 +67,8 @@ uv run {baseDir}/scripts/evidence_logger.py --session SESSION_ID --channel CHANN
 Intel types: `phone`, `email`, `wallet`, `bank_account`, `username`, `name`, `url`, `mule_account`
 
 4. Compose persona response using delay tactics (store runs, bank loading, computer trouble, verification loops).
-5. Log outbound, send via message tool. Repeat.
+5. **Calculate and apply the response delay** — same as first-message flow steps 7-8. If the response text describes a situational delay (e.g., "I'm heading to Walmart"), pass the matching `--situational` trigger (e.g., `store_run`). Use `--follow-up` if sending a second message in a burst. Use `--scammer-double-texted` if the scammer sent multiple messages while we were silent. Use `--scammer-urgent` if they are pressuring us to hurry.
+6. Send via message tool, then log outbound with `--delay-seconds` and `--delay-reason`. Repeat.
 
 ## Predator Detection (Passive Mode)
 

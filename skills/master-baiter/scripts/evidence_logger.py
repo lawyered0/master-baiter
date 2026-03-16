@@ -102,6 +102,7 @@ def update_session_state(
     severity: int = 0,
     persona: str = "",
     mode: str = "bait",
+    delay_seconds: int = 0,
 ):
     session_dir = get_session_dir(session_id)
     state_file = session_dir / "state.json"
@@ -116,6 +117,9 @@ def update_session_state(
             state["severity"] = severity
         if persona:
             state["persona"] = persona
+        if delay_seconds:
+            state["total_delay_seconds"] = state.get("total_delay_seconds", 0) + delay_seconds
+            state["last_delay_seconds"] = delay_seconds
     else:
         state = {
             "session_id": session_id,
@@ -127,6 +131,8 @@ def update_session_state(
             "mode": mode,
             "status": "active",
             "message_count": 1,
+            "total_delay_seconds": delay_seconds,
+            "last_delay_seconds": delay_seconds,
             "created_at": datetime.now(timezone.utc).isoformat(),
             "updated_at": datetime.now(timezone.utc).isoformat(),
         }
@@ -186,8 +192,16 @@ def main():
     parser.add_argument("--intel-type", default="", help="Intel type to extract (phone, email, wallet, etc.)")
     parser.add_argument("--intel-value", default="", help="Intel value to extract")
     parser.add_argument("--intel-platform", default="", help="Platform for intel item")
+    parser.add_argument("--delay-seconds", type=int, default=0, help="Response delay applied before sending (seconds)")
+    parser.add_argument("--delay-reason", default="", help="Human-readable reason for the delay")
 
     args = parser.parse_args()
+
+    # Build metadata for outbound messages with delay info
+    metadata = {}
+    if args.delay_seconds and args.direction == "outbound":
+        metadata["delay_seconds"] = args.delay_seconds
+        metadata["delay_reason"] = args.delay_reason
 
     # Log the evidence entry
     entry = log_evidence(
@@ -196,6 +210,7 @@ def main():
         sender_id=args.sender,
         direction=args.direction,
         content=args.content,
+        metadata=metadata if metadata else None,
     )
 
     # Update session state
@@ -207,6 +222,7 @@ def main():
         severity=args.severity,
         persona=args.persona,
         mode=args.mode,
+        delay_seconds=args.delay_seconds,
     )
 
     # Extract intel if provided
