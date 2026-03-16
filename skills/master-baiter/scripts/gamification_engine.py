@@ -17,7 +17,6 @@ Usage:
 
 import argparse
 import json
-import math
 import sys
 
 
@@ -73,6 +72,7 @@ def xp_for_level(level: int) -> int:
 
 def level_from_xp(total_xp: int) -> dict:
     """Calculate level info from total XP."""
+    total_xp = max(0, total_xp)
     level = 0
     while xp_for_level(level + 1) <= total_xp:
         level += 1
@@ -617,14 +617,6 @@ FUN_COMPARISONS = [
 
 def fun_comparison(total_seconds: int) -> str:
     """Generate a fun time comparison."""
-    best = None
-    for threshold, desc in FUN_COMPARISONS:
-        if total_seconds >= threshold:
-            best = desc
-    if not best:
-        return "Keep going! Every second counts."
-
-    # For large amounts, use multiples
     for threshold, desc in reversed(FUN_COMPARISONS):
         if total_seconds >= threshold:
             times = total_seconds / threshold
@@ -632,7 +624,7 @@ def fun_comparison(total_seconds: int) -> str:
                 return f"enough to {desc} {times:.0f} times over"
             return desc
 
-    return best
+    return "Keep going! Every second counts."
 
 
 def format_duration_human(seconds: int) -> str:

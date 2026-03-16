@@ -113,11 +113,11 @@ def update_session_state(
         state["message_count"] = state.get("message_count", 0) + 1
         if scam_type:
             state["scam_type"] = scam_type
-        if severity:
+        if severity is not None and severity != state.get("severity"):
             state["severity"] = severity
         if persona:
             state["persona"] = persona
-        if delay_seconds:
+        if delay_seconds is not None and delay_seconds > 0:
             state["total_delay_seconds"] = state.get("total_delay_seconds", 0) + delay_seconds
             state["last_delay_seconds"] = delay_seconds
     else:

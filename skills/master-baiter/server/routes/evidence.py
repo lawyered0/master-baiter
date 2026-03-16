@@ -2,11 +2,12 @@
 
 import json
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session as DBSession
 
 from db import get_db
@@ -59,6 +60,8 @@ def get_evidence(
 @router.get("/{session_id}/verify")
 def verify_evidence(session_id: str):
     """Run hash chain verification on a session's evidence."""
+    if not re.match(r'^[a-zA-Z0-9_-]+$', session_id):
+        raise HTTPException(status_code=400, detail="Invalid session ID format")
     script = SCRIPTS_DIR / "hash_verify.py"
     result = subprocess.run(
         [sys.executable, str(script), "--session", session_id],

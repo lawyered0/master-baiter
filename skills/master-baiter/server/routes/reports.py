@@ -1,13 +1,17 @@
 """Report management API routes."""
 
+import os
 from datetime import datetime, timezone
+from pathlib import Path
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session as DBSession
 from sqlalchemy import desc
 
 from db import get_db
 from models import Report
+
+WORKSPACE = Path(os.environ.get("OPENCLAW_WORKSPACE", Path.home() / ".openclaw" / "workspace"))
 
 router = APIRouter(prefix="/api/reports", tags=["reports"])
 
@@ -53,14 +57,18 @@ def list_reports(
 def get_report(report_id: int, db: DBSession = Depends(get_db)):
     report = db.query(Report).filter(Report.id == report_id).first()
     if not report:
-        return {"error": "Report not found"}, 404
+        raise HTTPException(status_code=404, detail="Report not found")
 
     # Read report file content if it exists
     content = ""
     if report.file_path:
         try:
-            with open(report.file_path, "r") as f:
-                content = f.read()
+            resolved = Path(report.file_path).resolve()
+            if not str(resolved).startswith(str(WORKSPACE.resolve())):
+                content = "(Invalid report file path)"
+            else:
+                with open(resolved, "r") as f:
+                    content = f.read()
         except FileNotFoundError:
             content = "(Report file not found)"
 
@@ -80,7 +88,7 @@ def get_report(report_id: int, db: DBSession = Depends(get_db)):
 def mark_reviewed(report_id: int, db: DBSession = Depends(get_db)):
     report = db.query(Report).filter(Report.id == report_id).first()
     if not report:
-        return {"error": "Report not found"}, 404
+        raise HTTPException(status_code=404, detail="Report not found")
 
     report.status = "reviewed"
     db.commit()
@@ -92,7 +100,7 @@ def mark_reviewed(report_id: int, db: DBSession = Depends(get_db)):
 def mark_submitted(report_id: int, db: DBSession = Depends(get_db)):
     report = db.query(Report).filter(Report.id == report_id).first()
     if not report:
-        return {"error": "Report not found"}, 404
+        raise HTTPException(status_code=404, detail="Report not found")
 
     report.status = "submitted"
     report.submitted_at = datetime.now(timezone.utc)

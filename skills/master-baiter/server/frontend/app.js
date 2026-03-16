@@ -16,7 +16,8 @@ let summarySnapshot = null;
 
 // ─── API ─────────────────────────────────────────────────────────────────────
 async function api(path, opts = {}) {
-    const res = await fetch(path, { headers: { 'Content-Type': 'application/json' }, ...opts });
+    const res = await fetch(path, { ...opts });
+    if (!res.ok) throw new Error(`API error: ${res.status}`);
     return res.json();
 }
 
@@ -39,8 +40,12 @@ function connectWS() {
     };
 
     ws.onmessage = (event) => {
-        const msg = JSON.parse(event.data);
-        handleLiveUpdate(msg);
+        try {
+            const msg = JSON.parse(event.data);
+            handleLiveUpdate(msg);
+        } catch (e) {
+            console.warn('Invalid WebSocket message:', e);
+        }
     };
 }
 
@@ -57,7 +62,7 @@ function handleLiveUpdate(msg) {
             if (currentView === 'sessions') loadSessions();
             if (currentView === 'analytics') loadAnalytics();
             if (currentSessionId === data.session_id) loadSessionDetail(currentSessionId);
-            showToast(`Session ${data.session_id.slice(0, 8)}… updated`, 'info');
+            showToast(`Session ${data?.session_id?.slice(0, 8) || 'unknown'}… updated`, 'info');
             break;
         case 'evidence_update':
             if (currentSessionId === data.session_id) loadSessionDetail(currentSessionId);
@@ -97,7 +102,7 @@ function showToast(message, type = 'info') {
         display:flex;align-items:center;gap:8px;font-size:13px;opacity:0;transform:translateX(40px);
         transition:all 0.3s ease;pointer-events:auto;box-shadow:0 4px 12px rgba(0,0,0,0.3);
     `;
-    toast.innerHTML = `<span>${icons[type] || '🔔'}</span><span>${message}</span>`;
+    toast.innerHTML = `<span>${icons[type] || '🔔'}</span><span>${escapeHtml(message)}</span>`;
     container.appendChild(toast);
 
     requestAnimationFrame(() => {
@@ -121,6 +126,10 @@ document.querySelectorAll('.nav-link').forEach(link => {
 });
 
 function switchView(view) {
+    if (currentView === 'analytics' && view !== 'analytics' && liveCounterInterval) {
+        clearInterval(liveCounterInterval);
+        liveCounterInterval = null;
+    }
     currentView = view;
     document.querySelectorAll('.nav-link').forEach(l =>
         l.classList.toggle('active', l.dataset.view === view)
@@ -212,7 +221,7 @@ async function loadSessions() {
     }
 
     tbody.innerHTML = data.sessions.map(s => `
-        <tr onclick="openSession('${s.id}')"
+        <tr onclick="openSession('${escapeHtml(s.id)}')"
             class="${s.severity >= 4 ? 'row-pulse' : ''}"
             data-severity="${s.severity}">
             <td>${channelIcon(s.channel)}</td>
@@ -248,9 +257,9 @@ async function loadSessionDetail(id) {
         `${CHANNEL_EMOJI[session.channel] || '📨'} ${scamLabel(session.scam_type)} — ${session.persona || 'No persona'}`;
 
     document.getElementById('detail-info').innerHTML = `
-        <div><strong>Session:</strong> ${id.slice(0, 12)}…</div>
-        <div><strong>Channel:</strong> ${session.channel}</div>
-        <div><strong>Sender:</strong> ${session.sender_id}</div>
+        <div><strong>Session:</strong> ${escapeHtml(id.slice(0, 12))}…</div>
+        <div><strong>Channel:</strong> ${escapeHtml(session.channel)}</div>
+        <div><strong>Sender:</strong> ${escapeHtml(session.sender_id)}</div>
         <div><strong>Scam Type:</strong> ${scamLabel(session.scam_type)}</div>
         <div><strong>Severity:</strong> ${session.severity ? severityBadge(session.severity) : '—'}</div>
         <div><strong>Mode:</strong> ${session.mode === 'passive' ? '👁️ Passive' : '🎣 Active Bait'}</div>
@@ -377,14 +386,14 @@ async function loadReports() {
     const typeIcons = { ic3: '🏛️', ftc: '🛡️', ncmec: '🚨', local_pd: '👮', platform_abuse: '📢' };
 
     tbody.innerHTML = data.reports.map(r => `
-        <tr onclick="openReport(${r.id})">
-            <td>${typeIcons[r.report_type] || '📄'} ${r.report_type.toUpperCase()}</td>
-            <td>${r.session_id.slice(0, 12)}…</td>
+        <tr onclick="openReport('${escapeHtml(String(r.id))}')">
+            <td>${typeIcons[r.report_type] || '📄'} ${escapeHtml(r.report_type).toUpperCase()}</td>
+            <td>${escapeHtml(r.session_id.slice(0, 12))}…</td>
             <td>${statusBadge(r.status)}</td>
             <td>${formatTime(r.generated_at)}</td>
             <td>${r.submitted_at ? formatTime(r.submitted_at) : '—'}</td>
             <td>
-                <button class="btn btn-sm btn-primary" onclick="event.stopPropagation(); openReport(${r.id})">View</button>
+                <button class="btn btn-sm btn-primary" onclick="event.stopPropagation(); openReport('${escapeHtml(String(r.id))}')">View</button>
             </td>
         </tr>
     `).join('');
@@ -755,7 +764,7 @@ function showAchievementToast(achievement) {
         <span style="font-size:24px">${achievement.icon || '🏆'}</span>
         <div>
             <div style="color:var(--gold);font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:0.05em">Achievement Unlocked</div>
-            <div style="font-weight:600">${achievement.name}</div>
+            <div style="font-weight:600">${escapeHtml(achievement.name)}</div>
         </div>
         <span class="ach-xp-toast">+${achievement.xp_reward} XP</span>
     `;

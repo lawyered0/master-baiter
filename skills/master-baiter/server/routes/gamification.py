@@ -511,6 +511,8 @@ def recalculate(db: DBSession = Depends(get_db)):
     global_achs = _sync_achievements(db, global_stats)
     all_new_achievements.extend(global_achs)
 
+    # Re-query total XP to include achievement XP
+    total_xp = _get_total_xp(db)
     level_info = level_from_xp(total_xp)
 
     return {

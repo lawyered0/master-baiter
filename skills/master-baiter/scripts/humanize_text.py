@@ -269,6 +269,8 @@ def inject_word_typo(word: str) -> str:
 
 def apply_autocorrect(word: str) -> str:
     """Simulate autocorrect mangling a word."""
+    if not word:
+        return word
     lower = word.lower().strip(".,!?;:'\"")
     if lower in AUTOCORRECT_SWAPS:
         replacement = AUTOCORRECT_SWAPS[lower]
@@ -433,17 +435,17 @@ def humanize(text: str, persona: str, message_number: int = 1) -> dict:
     if profile["ellipsis_abuse"] > 0:
         sentences = result.split(". ")
         if len(sentences) > 1:
-            # Only attempt mid-sentence ellipsis if there are multiple sentences
-            new_sentences = []
-            for idx, s in enumerate(sentences):
-                new_sentences.append(s)
-                # Replace the ". " joiner with "... " between sentences
-                if (idx < len(sentences) - 1
-                        and random.random() < profile["ellipsis_abuse"] * degradation_mult):
-                    # We'll rejoin with "... " instead of ". "
-                    new_sentences[-1] = s.rstrip(".") + "..."
+            # Build result by joining sentences with either ". " or "... "
+            parts = [sentences[0]]
+            for idx in range(1, len(sentences)):
+                if random.random() < profile["ellipsis_abuse"] * degradation_mult:
+                    # Join with "... " instead of ". "
+                    parts[-1] = parts[-1].rstrip(".") + "..."
                     mutations.append("ellipsis")
-            result = ". ".join(new_sentences)
+                    parts.append(" " + sentences[idx])
+                else:
+                    parts.append(". " + sentences[idx])
+            result = "".join(parts)
         # Randomly replace trailing period with "..."
         if (random.random() < profile["ellipsis_abuse"] * degradation_mult
                 and result.endswith(".")):

@@ -1,7 +1,7 @@
 """Session management API routes."""
 
 from datetime import datetime, timezone
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session as DBSession
 from sqlalchemy import desc
 
@@ -66,7 +66,7 @@ def list_sessions(
 def get_session(session_id: str, db: DBSession = Depends(get_db)):
     session = db.query(Session).filter(Session.id == session_id).first()
     if not session:
-        return {"error": "Session not found"}, 404
+        raise HTTPException(status_code=404, detail="Session not found")
 
     intel = db.query(IntelItem).filter(IntelItem.session_id == session_id).all()
     reports = db.query(Report).filter(Report.session_id == session_id).all()
@@ -137,7 +137,7 @@ def get_transcript(
 def escalate_session(session_id: str, severity: int = Query(..., ge=1, le=5), db: DBSession = Depends(get_db)):
     session = db.query(Session).filter(Session.id == session_id).first()
     if not session:
-        return {"error": "Session not found"}, 404
+        raise HTTPException(status_code=404, detail="Session not found")
 
     session.severity = severity
     session.status = "escalated" if severity >= 4 else session.status
@@ -151,7 +151,7 @@ def escalate_session(session_id: str, severity: int = Query(..., ge=1, le=5), db
 def close_session(session_id: str, db: DBSession = Depends(get_db)):
     session = db.query(Session).filter(Session.id == session_id).first()
     if not session:
-        return {"error": "Session not found"}, 404
+        raise HTTPException(status_code=404, detail="Session not found")
 
     session.status = "closed"
     session.updated_at = datetime.now(timezone.utc)

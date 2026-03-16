@@ -1,7 +1,7 @@
 """Intel database API routes."""
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import func
+from sqlalchemy import distinct, func
 from sqlalchemy.orm import Session as DBSession
 
 from db import get_db
@@ -24,7 +24,7 @@ def list_intel(
         IntelItem.platform,
         func.min(IntelItem.first_seen).label("first_seen"),
         func.max(IntelItem.last_seen).label("last_seen"),
-        func.count(IntelItem.session_id.distinct()).label("session_count"),
+        func.count(distinct(IntelItem.session_id)).label("session_count"),
     ).group_by(IntelItem.type, IntelItem.value)
 
     if type:

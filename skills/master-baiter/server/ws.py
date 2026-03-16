@@ -15,19 +15,25 @@ class ConnectionManager:
         self.active_connections.append(websocket)
 
     def disconnect(self, websocket: WebSocket):
-        self.active_connections.remove(websocket)
+        try:
+            self.active_connections.remove(websocket)
+        except ValueError:
+            pass
 
     async def broadcast(self, event_type: str, data: dict):
         """Broadcast an event to all connected clients."""
         message = json.dumps({"type": event_type, "data": data})
         disconnected = []
-        for connection in self.active_connections:
+        for connection in list(self.active_connections):
             try:
                 await connection.send_text(message)
             except Exception:
                 disconnected.append(connection)
         for conn in disconnected:
-            self.active_connections.remove(conn)
+            try:
+                self.active_connections.remove(conn)
+            except ValueError:
+                pass
 
 
 manager = ConnectionManager()
