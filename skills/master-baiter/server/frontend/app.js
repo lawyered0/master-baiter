@@ -173,7 +173,7 @@ const CHANNEL_EMOJI = {
 };
 
 function channelIcon(ch) {
-    return `<span class="channel-icon">${CHANNEL_EMOJI[ch] || '📨'} ${ch}</span>`;
+    return `<span class="channel-icon">${CHANNEL_EMOJI[ch] || '📨'} ${escapeHtml(ch)}</span>`;
 }
 
 function severityBadge(sev) {
@@ -182,12 +182,13 @@ function severityBadge(sev) {
 }
 
 function statusBadge(status) {
-    return `<span class="status-badge status-${status}">${status}</span>`;
+    const safe = escapeHtml(status);
+    return `<span class="status-badge status-${safe}">${safe}</span>`;
 }
 
 function scamLabel(type) {
     if (!type) return '—';
-    return type.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+    return escapeHtml(type.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()));
 }
 
 function emptyState(icon, msg) {
@@ -227,7 +228,7 @@ async function loadSessions() {
             <td>${channelIcon(s.channel)}</td>
             <td>${scamLabel(s.scam_type)}</td>
             <td>${s.severity ? severityBadge(s.severity) : '—'}</td>
-            <td>${s.persona || '—'}</td>
+            <td>${escapeHtml(s.persona) || '—'}</td>
             <td>${statusBadge(s.status)}</td>
             <td><span class="msg-count">${s.message_count}</span></td>
             <td class="time-wasted-cell">${formatDuration(s.time_wasted_seconds)}</td>
@@ -344,10 +345,10 @@ async function loadIntel() {
 
     tbody.innerHTML = data.items.map(i => `
         <tr onclick="viewIntelNetwork('${escapeHtml(i.value)}')" style="cursor:pointer">
-            <td><span class="intel-type-badge type-${i.type}">${i.type}</span></td>
+            <td><span class="intel-type-badge type-${escapeHtml(i.type)}">${escapeHtml(i.type)}</span></td>
             <td class="mono"><strong>${escapeHtml(i.value)}</strong></td>
             <td>${i.platform || '—'}</td>
-            <td>${i.session_count != null ? `<span class="session-count">${i.session_count}</span>` : (i.session_id ? i.session_id.slice(0, 8) + '…' : '—')}</td>
+            <td>${i.session_count != null ? `<span class="session-count">${i.session_count}</span>` : (i.session_id ? escapeHtml(i.session_id.slice(0, 8)) + '…' : '—')}</td>
             <td>${formatTime(i.first_seen)}</td>
             <td>${formatTime(i.last_seen)}</td>
         </tr>
@@ -619,7 +620,7 @@ function renderEffectiveness(data) {
     if (items.length) {
         tbody.innerHTML = items.map(s => `
             <tr onclick="viewIntelNetwork('${escapeHtml(s.value)}')" style="cursor:pointer">
-                <td><span class="intel-type-badge type-${s.type}">${s.type}</span></td>
+                <td><span class="intel-type-badge type-${escapeHtml(s.type)}">${escapeHtml(s.type)}</span></td>
                 <td class="mono">${escapeHtml(s.value)}</td>
                 <td>${s.session_count}</td>
             </tr>

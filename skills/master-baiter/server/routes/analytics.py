@@ -1,7 +1,7 @@
 """Analytics API routes."""
 
 from fastapi import APIRouter, Depends
-from sqlalchemy import func
+from sqlalchemy import distinct, func
 from sqlalchemy.orm import Session as DBSession
 
 from db import get_db
@@ -113,10 +113,10 @@ def get_effectiveness(db: DBSession = Depends(get_db)):
         db.query(
             IntelItem.type,
             IntelItem.value,
-            func.count(IntelItem.session_id.distinct()).label("session_count"),
+            func.count(distinct(IntelItem.session_id)).label("session_count"),
         )
         .group_by(IntelItem.type, IntelItem.value)
-        .order_by(func.count(IntelItem.session_id.distinct()).desc())
+        .order_by(func.count(distinct(IntelItem.session_id)).desc())
         .limit(10)
         .all()
     )
