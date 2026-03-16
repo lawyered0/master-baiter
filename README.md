@@ -176,14 +176,33 @@ This tool is provided for legitimate scam baiting, fraud prevention, and predato
 
 All predator detection is passive (classification and reporting only). The tool does not engage in entrapment. All generated reports are drafts requiring human review and judgment before submission to any agency.
 
-## Inspiration
+## Dedication
 
-This project draws heavy inspiration from:
-- **[Kitboga](https://www.youtube.com/kitboga)** — Pioneer of scam baiting as entertainment and education. Our adaptive persona system and delay tactics are directly inspired by his work
-- **[Jim Browning](https://www.youtube.com/jimbrowning)** — Technical scam investigation and call center infiltration
-- **[Scammer Payback](https://www.youtube.com/scammerpayback)** — Creative scam disruption techniques
-- **[419eater](https://419eater.com)** — The original email scam baiting community
+> *"Hello, this is Edna. I'm trying to redeem my Google Play cards but the back is all scratchy and I can't read the numbers..."*
+
+This project is dedicated to **[Kitboga](https://www.youtube.com/kitboga)**, who proved that fighting scammers doesn't have to be grim — it can be hilarious, creative, and deeply human. He turned scam baiting into an art form: Edna, Nevaeh, the redeeming saga of gift cards that never quite work, the bank accounts that are always *just* loading, the grandchildren who keep calling at the worst possible moment.
+
+More importantly, he showed millions of people how scams actually work, gave victims permission to talk about what happened to them, and demonstrated that every minute spent with a scammer is a minute they can't spend hurting someone real.
+
+Confused Edna in our persona strategies? That's a love letter. The gift card store runs, the bank verification loops, the endless computer trouble? All Kitboga playbook. We just taught an AI to run them 24/7 across every messaging channel on earth.
+
+**Thank you, Kit.** The scammers never stood a chance.
+
+## Standing on the Shoulders of Giants
+
+- **[Kitboga](https://www.youtube.com/kitboga)** — The GOAT. Personas, delay tactics, and the radical idea that wasting a scammer's time is a public service
+- **[Jim Browning](https://www.youtube.com/jimbrowning)** — The technical mastermind. Reverse-accessing scam call centers, documenting infrastructure, working directly with law enforcement
+- **[Scammer Payback](https://www.youtube.com/scammerpayback)** — Creative disruption taken to the extreme. Deleting scammer files, accessing their CCTV, making them question everything
+- **[419eater](https://419eater.com)** — The OGs. Email scam baiting since before YouTube existed. The original community that proved this works
+- **[Pleasant Green](https://www.youtube.com/pleasantgreen)** — Romance scam investigation and the human cost of fraud
+- **[Trilogy Media](https://www.youtube.com/trilogymedia)** — Confronting scammers in person and exposing domestic call centers
 
 ## License
 
 [MIT](LICENSE)
+
+---
+
+<p align="center">
+<em>Every minute a scammer spends with us is a minute they're not victimizing someone real.</em>
+</p>
