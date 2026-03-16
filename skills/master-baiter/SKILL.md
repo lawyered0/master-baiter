@@ -15,39 +15,58 @@ Dual-mode scam fighter: **active baiting** of financial scammers + **passive det
 - All generated reports are DRAFTS requiring human review before submission.
 - If a financial scam conversation turns predatory, IMMEDIATELY switch to passive mode.
 
-## Scam Baiting (Active Mode)
+## First Message Flow
 
-1. Classify inbound message: `cat {baseDir}/references/scam-taxonomy.md`
-2. Select persona + honeypot strategy: `cat {baseDir}/references/persona-strategies.md`
-3. Respond via `message` tool on the same channel. Use delay tactics: store runs, bank loading, computer updating, verification loops.
-4. Log every message (inbound + outbound):
+When a suspected scam message arrives:
+
+1. Generate a session ID: `python3 -c "import uuid; print(uuid.uuid4())"`
+2. Classify scam type by reading `cat {baseDir}/references/scam-taxonomy.md`
+3. Select persona by reading `cat {baseDir}/references/persona-strategies.md`
+4. Assign severity (1-5) per `cat {baseDir}/references/escalation-framework.md`
+5. Log the inbound message and create session (one command does both):
 
 ```bash
-uv run {baseDir}/scripts/evidence_logger.py --session SESSION_ID --channel CHANNEL --sender SENDER_ID --direction inbound --content "MESSAGE"
+uv run {baseDir}/scripts/evidence_logger.py --session SESSION_ID --channel CHANNEL --sender SENDER_ID --direction inbound --content "MESSAGE" --scam-type TYPE --severity SEV --persona PERSONA --mode bait
 ```
 
-5. Extract and log intel: names, phone numbers, emails, crypto wallets, bank accounts, mule accounts.
-6. Objective: maximize time wasted while extracting maximum identifying information.
+6. Compose a response in the selected persona voice. Send it via the `message` tool.
+7. Log the outbound message:
+
+```bash
+uv run {baseDir}/scripts/evidence_logger.py --session SESSION_ID --channel CHANNEL --sender SENDER_ID --direction outbound --content "YOUR_RESPONSE"
+```
+
+## Ongoing Conversations
+
+On each new message in an existing session:
+
+1. Log inbound with evidence_logger.py (same command as above, same session ID).
+2. Check for escalation triggers — re-read escalation-framework.md if severity may have changed.
+3. If scammer reveals identifying info, extract it:
+
+```bash
+uv run {baseDir}/scripts/evidence_logger.py --session SESSION_ID --channel CHANNEL --sender SENDER_ID --direction inbound --content "MESSAGE" --intel-type phone --intel-value "+1234567890" --intel-platform whatsapp
+```
+
+Intel types: `phone`, `email`, `wallet`, `bank_account`, `username`, `name`, `url`, `mule_account`
+
+4. Compose persona response using delay tactics (store runs, bank loading, computer trouble, verification loops).
+5. Log outbound, send via message tool. Repeat.
 
 ## Predator Detection (Passive Mode)
 
 1. Check indicators: `cat {baseDir}/references/predator-indicators.md`
-2. PASSIVE ONLY — classify, log evidence, generate reports. NEVER engage or respond.
+2. PASSIVE ONLY — classify, log evidence, generate reports. NEVER engage or respond to the sender.
 3. Severity 4-5 triggers automatic NCMEC report generation.
 
 ## Escalation
-
-Read `{baseDir}/references/escalation-framework.md` for severity thresholds.
 
 - Sev 1-2: Log + bait. Sev 3: Generate report drafts. Sev 4: All reports + alert operator. Sev 5 (CSAM/imminent harm): STOP all engagement, NCMEC report, alert all channels.
 
 ## Evidence & Reports
 
 ```bash
-# Verify evidence chain integrity
 uv run {baseDir}/scripts/hash_verify.py --session SESSION_ID
-
-# Generate reports
 uv run {baseDir}/scripts/report_ic3.py --session SESSION_ID
 uv run {baseDir}/scripts/report_ftc.py --session SESSION_ID
 uv run {baseDir}/scripts/report_ncmec.py --session SESSION_ID
@@ -57,20 +76,8 @@ uv run {baseDir}/scripts/report_platform_abuse.py --session SESSION_ID --platfor
 
 ## Dashboard
 
-Start the monitoring dashboard:
-
 ```bash
 uv run {baseDir}/server/main.py
 ```
 
 Opens at `http://localhost:8147` — live session monitoring, intel database, report management, analytics.
-
-## Workspace Layout
-
-```
-master-baiter/sessions/<id>/state.json      # Session state + classification
-master-baiter/evidence/<id>/chain.jsonl      # SHA-256 hashed evidence chain
-master-baiter/reports/<id>/*.md              # Generated report drafts
-master-baiter/analytics/intel-db.json        # Cross-session intel database
-master-baiter/db/master-baiter.db            # SQLite dashboard database
-```
