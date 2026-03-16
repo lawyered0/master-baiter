@@ -149,11 +149,29 @@ def resolve_persona(name: str) -> str:
     return key
 
 
+_ABBREVS = re.compile(
+    r'\b(?:Dr|Mr|Mrs|Ms|Prof|Sr|Jr|St|vs|etc|Inc|Ltd|Corp|Rev|Gen|Gov|Sgt|Cpl|Pvt|Capt|Col|Maj|Lt|Cmdr|Adm|Ave|Blvd|Dept|Est|Fig|Mt|No|Vol|approx|dept|est)\.'
+)
+
+# Sentinel that won't appear in real text
+_ABBREV_GUARD = '\x01ABBR\x01'
+
+
 def _split_at_sentences(text: str) -> list[str]:
-    """Split text into sentences, keeping punctuation attached."""
+    """Split text into sentences, keeping punctuation attached.
+
+    Handles common abbreviations (Dr., Mr., Mrs., etc.) so they
+    don't get treated as sentence boundaries.
+    """
+    # Temporarily mask abbreviation periods so they don't trigger a split
+    guarded = _ABBREVS.sub(lambda m: m.group().replace('.', _ABBREV_GUARD), text)
+
     # Split on sentence-ending punctuation followed by a space
-    parts = re.split(r'(?<=[.!?])\s+', text)
-    return [p.strip() for p in parts if p.strip()]
+    parts = re.split(r'(?<=[.!?])\s+', guarded)
+
+    # Restore masked periods
+    restored = [p.replace(_ABBREV_GUARD, '.').strip() for p in parts]
+    return [p for p in restored if p]
 
 
 def _rand_delay(lo: float, hi: float) -> float:
@@ -342,12 +360,17 @@ def fragment_message(text: str, persona: str) -> dict:
 
     fragments = fragmenter(text, profile)
 
+    # If the fragmenter produced only 1 fragment, it means the text
+    # couldn't be split (e.g., single sentence with no commas).
+    # Report should_fragment=False so the caller doesn't log misleading metadata.
+    actually_fragmented = len(fragments) > 1
+
     # Calculate total inter-fragment delay
     total_inter = sum(f["delay_before"] for f in fragments)
 
     return {
         "fragments": fragments,
-        "should_fragment": True,
+        "should_fragment": actually_fragmented,
         "total_inter_delay": round(total_inter, 1),
         "fragment_count": len(fragments),
         "persona_key": persona_key,

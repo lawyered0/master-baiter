@@ -39,15 +39,18 @@ AUTOCORRECT_SWAPS = {
     "cant": "can't",
     "wont": "won't",
     "dont": "don't",
-    "duck": "duck",  # placeholder — the reverse is the famous one
-    "shot": "shot",
-    "sit": "sit",
-    "but": "buy",
-    "now": "not",
     "form": "from",
     "teh": "the",
     "adn": "and",
+    "hte": "the",
+    "yuor": "your",
+    "thier": "their",
+    "recieve": "receive",
+    "definately": "definitely",
 }
+# NOTE: removed "but"->"buy", "now"->"not", "duck", "shot", "sit"
+# because they change meaning drastically and break the conversation.
+# Real autocorrect fixes typos into real words, not swaps common words.
 
 # Edna's tech malapropisms — she uses these instead of the real terms
 EDNA_MALAPROPISMS = {
@@ -182,6 +185,27 @@ def resolve_persona(name: str) -> str:
     return key
 
 
+# Patterns that should NEVER get typos injected (would break the bait)
+PROTECTED_PATTERNS = re.compile(
+    r'^('
+    r'0x[0-9a-fA-F]{6,}'         # Crypto wallet addresses (0x...)
+    r'|[13][a-km-zA-HJ-NP-Z1-9]{25,34}'  # Bitcoin addresses
+    r'|[A-Z]{2,4}-\d{6,}'        # Confirmation codes (REF-12345678, WT-1234567890)
+    r'|TXN-[A-Za-z0-9]{8,}'      # Transaction IDs
+    r'|\d{3}[-.]?\d{3}[-.]?\d{4}'  # Phone numbers
+    r'|[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}'  # Email addresses
+    r'|\$[\d,.]+\d'               # Dollar amounts ($500.00)
+    r'|\d{4,}'                    # Long number sequences (account numbers, PINs)
+    r')$'
+)
+
+
+def _is_protected(word: str) -> bool:
+    """Check if a word should be protected from typo injection."""
+    clean = word.strip(".,!?;:'\"()-")
+    return bool(PROTECTED_PATTERNS.match(clean))
+
+
 # --- Error injection functions ---
 
 def _adjacent_key_typo(char: str) -> str:
@@ -263,14 +287,55 @@ def apply_autocorrect(word: str) -> str:
 
 
 def apply_malapropisms(text: str, rate: float) -> str:
-    """Replace tech terms with Edna-style malapropisms."""
+    """Replace tech terms with Edna-style malapropisms.
+
+    Handles the double-article problem: if the replacement starts with "the"
+    (e.g., "the Google") and the original text has "the browser", we match
+    "the browser" as a unit and replace it — avoiding "the the Google".
+
+    Uses placeholders to prevent cascading replacements (e.g., "browser" →
+    "the Google", then "google" matching the just-inserted "Google").
+    """
     if rate <= 0:
         return text
+
+    # Use placeholder tokens to prevent cascade: replacement text from one
+    # malapropism shouldn't be matched by a later one.
+    placeholders: dict[str, str] = {}
+    counter = 0
+
     for term, replacement in EDNA_MALAPROPISMS.items():
         if random.random() < rate:
-            # Case-insensitive replacement, but only whole words
-            pattern = re.compile(r'\b' + re.escape(term) + r'\b', re.IGNORECASE)
-            text = pattern.sub(replacement, text)
+            placeholder = f"\x00MALAP{counter}\x00"
+            counter += 1
+
+            matched = False
+            # If replacement starts with an article/possessive, first try to
+            # match "the/a/an/my/your/her/his <term>" as a unit to avoid
+            # "the the Google" or "your my telephone"
+            if replacement.lower().startswith(("the ", "my ", "a ")):
+                article_pattern = re.compile(
+                    r'\b(?:the|a|an|my|your|her|his|our|their)\s+'
+                    + re.escape(term) + r'\b',
+                    re.IGNORECASE,
+                )
+                if article_pattern.search(text):
+                    text = article_pattern.sub(placeholder, text)
+                    matched = True
+
+            # Replace any remaining bare occurrences
+            bare_pattern = re.compile(r'\b' + re.escape(term) + r'\b', re.IGNORECASE)
+            if bare_pattern.search(text):
+                text = bare_pattern.sub(placeholder, text)
+                matched = True
+
+            if matched:
+                placeholders[placeholder] = replacement
+
+    # Substitute all placeholders with their actual replacement text
+    for placeholder, replacement in placeholders.items():
+        text = text.replace(placeholder, replacement)
+
     return text
 
 
@@ -318,13 +383,23 @@ def humanize(text: str, persona: str, message_number: int = 1) -> dict:
         # Skip very short words and words that are already "messy"
         clean_word = word.strip(".,!?;:'\"()-")
 
-        # Typo injection
+        # Skip contractions — typos on "don't" produce unnatural "dont'" artifacts
+        is_contraction = "'" in clean_word
+
+        # Typo injection (skip protected patterns like wallets, phones, emails)
         if (len(clean_word) >= 3
+                and not _is_protected(word)
+                and not is_contraction
                 and random.random() < profile["typo_rate"] * degradation_mult):
             original_word = word
-            # Find the clean part and apply typo to it, preserving punctuation
-            prefix = word[:word.index(clean_word[0])] if clean_word and clean_word[0] in word else ""
-            suffix = word[word.index(clean_word[-1]) + 1:] if clean_word and clean_word[-1] in word else ""
+            # Find the clean part within the word to preserve surrounding punctuation
+            start = word.find(clean_word)
+            if start >= 0:
+                prefix = word[:start]
+                suffix = word[start + len(clean_word):]
+            else:
+                prefix = ""
+                suffix = ""
             word = prefix + inject_word_typo(clean_word) + suffix
             if word != original_word:
                 mutations.append(f"typo: '{original_word}' → '{word}'")
@@ -357,18 +432,21 @@ def humanize(text: str, persona: str, message_number: int = 1) -> dict:
     # Ellipsis abuse (replace some periods with "...")
     if profile["ellipsis_abuse"] > 0:
         sentences = result.split(". ")
-        new_sentences = []
-        for s in sentences:
-            if random.random() < profile["ellipsis_abuse"] * degradation_mult and s:
+        if len(sentences) > 1:
+            # Only attempt mid-sentence ellipsis if there are multiple sentences
+            new_sentences = []
+            for idx, s in enumerate(sentences):
                 new_sentences.append(s)
-                # Replace the period joiner with "..."
-                if new_sentences:
+                # Replace the ". " joiner with "... " between sentences
+                if (idx < len(sentences) - 1
+                        and random.random() < profile["ellipsis_abuse"] * degradation_mult):
+                    # We'll rejoin with "... " instead of ". "
+                    new_sentences[-1] = s.rstrip(".") + "..."
                     mutations.append("ellipsis")
-            else:
-                new_sentences.append(s)
-        result = ". ".join(new_sentences)
-        # Also randomly replace remaining standalone periods
-        if random.random() < profile["ellipsis_abuse"] * degradation_mult:
+            result = ". ".join(new_sentences)
+        # Randomly replace trailing period with "..."
+        if (random.random() < profile["ellipsis_abuse"] * degradation_mult
+                and result.endswith(".")):
             result = result.rstrip(".")
             result += "..."
             mutations.append("trailing_ellipsis")
