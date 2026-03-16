@@ -441,6 +441,96 @@ tbody tr:hover { background: var(--bg-hover); }
 .empty-state .icon { font-size: 48px; margin-bottom: 12px; }
 .empty-state .message { font-size: 16px; }
 
+/* ─── Animations ────────────────────────────────────────────── */
+
+/* Severity 4-5 rows pulse red */
+@keyframes severityPulse {
+    0%, 100% { background: transparent; }
+    50% { background: rgba(239, 68, 68, 0.08); }
+}
+.row-pulse { animation: severityPulse 2s ease-in-out infinite; }
+.row-pulse td:first-child { border-left: 3px solid var(--red); }
+
+/* Chat message fade-in */
+@keyframes fadeSlideIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* Live time counter pulse */
+.time-pulse { animation: timePulse 1s ease-in-out infinite; }
+@keyframes timePulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+}
+
+/* Message count badge */
+.msg-count {
+    display: inline-block;
+    background: var(--bg-hover);
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 12px;
+    font-weight: 600;
+    min-width: 28px;
+    text-align: center;
+}
+
+/* Session count in intel */
+.session-count {
+    display: inline-block;
+    background: rgba(59, 130, 246, 0.15);
+    color: var(--accent);
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+/* Intel type badges */
+.intel-type-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+.type-phone { background: rgba(16, 185, 129, 0.15); color: var(--green); }
+.type-email { background: rgba(59, 130, 246, 0.15); color: var(--accent); }
+.type-wallet { background: rgba(245, 158, 11, 0.15); color: var(--yellow); }
+.type-bank_account { background: rgba(249, 115, 22, 0.15); color: var(--orange); }
+.type-username { background: rgba(168, 85, 247, 0.15); color: var(--purple); }
+.type-name { background: rgba(156, 163, 175, 0.15); color: var(--text-dim); }
+
+/* Monospace for intel values */
+.mono { font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace; font-size: 13px; }
+
+/* Scrollbar styling */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+
+/* Status dot pulse when connected */
+.status-dot.connected {
+    animation: dotPulse 3s ease-in-out infinite;
+}
+@keyframes dotPulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); }
+    50% { box-shadow: 0 0 0 4px rgba(16, 185, 129, 0); }
+}
+
+/* Hover glow on summary cards */
+.summary-card {
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+.summary-card:hover {
+    border-color: var(--accent);
+    box-shadow: 0 0 12px rgba(59, 130, 246, 0.15);
+}
+
 /* Responsive */
 @media (max-width: 768px) {
     .charts-grid { grid-template-columns: 1fr; }

@@ -6,7 +6,7 @@ Thanks for wanting to help fight scammers. Here's how to get involved.
 
 ```bash
 # Clone the repo
-git clone https://github.com/your-org/master-baiter.git
+git clone https://github.com/lawyered0/master-baiter.git
 cd master-baiter
 
 # Install uv (if you don't have it)

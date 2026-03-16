@@ -1,8 +1,12 @@
-# Master-Baiter
+# 🎣 Master-Baiter
 
 An [OpenClaw](https://github.com/openclaw/openclaw) skill that fights scammers and protects potential victims.
 
-**Every minute a scammer spends talking to a bot is a minute they're not scamming a real person.**
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![OpenClaw Skill](https://img.shields.io/badge/OpenClaw-Skill-purple.svg)](https://github.com/openclaw/openclaw)
+[![Python 3.11+](https://img.shields.io/badge/Python-3.11+-green.svg)](https://python.org)
+
+> **Every minute a scammer spends talking to a bot is a minute they're not scamming a real person.**
 
 Master-Baiter autonomously engages financial scammers with adaptive personas, extracts identifying intel, builds forensic evidence chains, and generates law enforcement reports — all while passively detecting predatory behavior for reporting to authorities.
 
@@ -28,7 +32,7 @@ Master-Baiter autonomously engages financial scammers with adaptive personas, ex
 
 ```bash
 # Clone into your OpenClaw workspace skills directory
-git clone https://github.com/your-org/master-baiter.git
+git clone https://github.com/lawyered0/master-baiter.git
 cp -r master-baiter/skills/master-baiter ~/.openclaw/skills/master-baiter
 
 # Or install via ClawHub (when published)
@@ -165,6 +169,14 @@ This tool is provided for legitimate scam baiting, fraud prevention, and predato
 - Platform terms of service
 
 All predator detection is passive (classification and reporting only). The tool does not engage in entrapment. All generated reports are drafts requiring human review and judgment before submission to any agency.
+
+## Inspiration
+
+This project draws heavy inspiration from:
+- **[Kitboga](https://www.youtube.com/kitboga)** — Pioneer of scam baiting as entertainment and education. Our adaptive persona system and delay tactics are directly inspired by his work
+- **[Jim Browning](https://www.youtube.com/jimbrowning)** — Technical scam investigation and call center infiltration
+- **[Scammer Payback](https://www.youtube.com/scammerpayback)** — Creative scam disruption techniques
+- **[419eater](https://419eater.com)** — The original email scam baiting community
 
 ## License
 

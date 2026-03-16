@@ -1,47 +1,41 @@
-/* Master-Baiter Dashboard — Frontend Application */
+/**
+ * Master-Baiter Dashboard — Frontend Application
+ * Real-time scam baiting session monitor with live WebSocket updates,
+ * animated counters, toast notifications, and keyboard navigation.
+ */
 
-const API = '';
-let ws = null;
+// ─── State ───────────────────────────────────────────────────────────────────
+let currentView = 'sessions';
 let currentSessionId = null;
 let currentReportId = null;
+let ws = null;
+let wsRetryCount = 0;
 let charts = {};
+let liveCounterInterval = null;
+let summarySnapshot = null;
 
-// ─── Navigation ───────────────────────────────────────────────
-document.querySelectorAll('.nav-link').forEach(link => {
-    link.addEventListener('click', e => {
-        e.preventDefault();
-        const view = link.dataset.view;
-        document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
-        document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
-        link.classList.add('active');
-        document.getElementById(`view-${view}`).classList.add('active');
-        loadView(view);
-    });
-});
-
-function loadView(view) {
-    switch (view) {
-        case 'sessions': loadSessions(); break;
-        case 'intel': loadIntel(); break;
-        case 'reports': loadReports(); break;
-        case 'analytics': loadAnalytics(); break;
-    }
+// ─── API ─────────────────────────────────────────────────────────────────────
+async function api(path, opts = {}) {
+    const res = await fetch(path, { headers: { 'Content-Type': 'application/json' }, ...opts });
+    return res.json();
 }
 
-// ─── WebSocket ────────────────────────────────────────────────
+// ─── WebSocket with exponential backoff ──────────────────────────────────────
 function connectWS() {
     const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
     ws = new WebSocket(`${proto}//${location.host}/ws/live`);
 
     ws.onopen = () => {
+        wsRetryCount = 0;
         document.getElementById('ws-status').className = 'status-dot connected';
         document.getElementById('ws-label').textContent = 'Live';
     };
 
     ws.onclose = () => {
         document.getElementById('ws-status').className = 'status-dot disconnected';
-        document.getElementById('ws-label').textContent = 'Disconnected';
-        setTimeout(connectWS, 3000);
+        document.getElementById('ws-label').textContent = 'Reconnecting...';
+        const delay = Math.min(1000 * 2 ** wsRetryCount++, 30000);
+        setTimeout(connectWS, delay);
     };
 
     ws.onmessage = (event) => {
@@ -51,75 +45,148 @@ function connectWS() {
 }
 
 function handleLiveUpdate(msg) {
-    const activeView = document.querySelector('.view.active')?.id;
-    switch (msg.type) {
+    // Flash the status dot
+    const dot = document.getElementById('ws-status');
+    dot.style.boxShadow = '0 0 8px 2px var(--green)';
+    setTimeout(() => (dot.style.boxShadow = ''), 600);
+
+    const { type, data } = msg;
+
+    switch (type) {
         case 'session_update':
-            if (activeView === 'view-sessions') loadSessions();
-            if (currentSessionId === msg.data.session_id) loadSessionDetail(currentSessionId);
+            if (currentView === 'sessions') loadSessions();
+            if (currentView === 'analytics') loadAnalytics();
+            if (currentSessionId === data.session_id) loadSessionDetail(currentSessionId);
+            showToast(`Session ${data.session_id.slice(0, 8)}… updated`, 'info');
             break;
         case 'evidence_update':
-            if (currentSessionId === msg.data.session_id) loadSessionDetail(currentSessionId);
+            if (currentSessionId === data.session_id) loadSessionDetail(currentSessionId);
+            if (currentView === 'sessions') loadSessions();
             break;
         case 'intel_update':
-            if (activeView === 'view-intel') loadIntel();
+            if (currentView === 'intel') loadIntel();
+            showToast('New intel extracted', 'success');
             break;
     }
 }
 
-// ─── API Helpers ──────────────────────────────────────────────
-async function api(path, opts = {}) {
-    const res = await fetch(`${API}${path}`, {
-        headers: { 'Content-Type': 'application/json' },
-        ...opts,
+// ─── Toast Notifications ─────────────────────────────────────────────────────
+function showToast(message, type = 'info') {
+    let container = document.getElementById('toast-container');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'toast-container';
+        container.style.cssText =
+            'position:fixed;top:68px;right:24px;z-index:200;display:flex;flex-direction:column;gap:8px;pointer-events:none;';
+        document.body.appendChild(container);
+    }
+
+    const icons = { info: '🔔', success: '✅', warning: '⚠️', danger: '🚨' };
+    const colors = { info: 'var(--accent)', success: 'var(--green)', warning: 'var(--orange)', danger: 'var(--red)' };
+
+    const toast = document.createElement('div');
+    toast.style.cssText = `
+        background:var(--bg-card);border:1px solid ${colors[type]};border-radius:8px;padding:10px 16px;
+        display:flex;align-items:center;gap:8px;font-size:13px;opacity:0;transform:translateX(40px);
+        transition:all 0.3s ease;pointer-events:auto;box-shadow:0 4px 12px rgba(0,0,0,0.3);
+    `;
+    toast.innerHTML = `<span>${icons[type] || '🔔'}</span><span>${message}</span>`;
+    container.appendChild(toast);
+
+    requestAnimationFrame(() => {
+        toast.style.opacity = '1';
+        toast.style.transform = 'translateX(0)';
     });
-    return res.json();
+
+    setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateX(40px)';
+        setTimeout(() => toast.remove(), 300);
+    }, 4000);
 }
 
+// ─── Navigation ──────────────────────────────────────────────────────────────
+document.querySelectorAll('.nav-link').forEach(link => {
+    link.addEventListener('click', e => {
+        e.preventDefault();
+        switchView(link.dataset.view);
+    });
+});
+
+function switchView(view) {
+    currentView = view;
+    document.querySelectorAll('.nav-link').forEach(l =>
+        l.classList.toggle('active', l.dataset.view === view)
+    );
+    document.querySelectorAll('.view').forEach(v =>
+        v.classList.toggle('active', v.id === `view-${view}`)
+    );
+    switch (view) {
+        case 'sessions':  loadSessions(); break;
+        case 'intel':     loadIntel(); break;
+        case 'reports':   loadReports(); break;
+        case 'analytics': loadAnalytics(); break;
+    }
+}
+
+// ─── Formatters ──────────────────────────────────────────────────────────────
 function formatDuration(seconds) {
     if (!seconds || seconds < 0) return '0s';
-    if (seconds < 60) return `${seconds}s`;
-    if (seconds < 3600) return `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
     const h = Math.floor(seconds / 3600);
     const m = Math.floor((seconds % 3600) / 60);
-    return `${h}h ${m}m`;
+    const s = seconds % 60;
+    if (h > 0) return `${h}h ${m}m`;
+    if (m > 0) return `${m}m ${s}s`;
+    return `${s}s`;
 }
 
 function formatTime(iso) {
     if (!iso) return '—';
     const d = new Date(iso);
-    const now = new Date();
-    const diffMs = now - d;
-    if (diffMs < 60000) return 'Just now';
+    const diffMs = Date.now() - d;
+    if (diffMs < 60000) return 'just now';
     if (diffMs < 3600000) return `${Math.floor(diffMs / 60000)}m ago`;
     if (diffMs < 86400000) return `${Math.floor(diffMs / 3600000)}h ago`;
     return d.toLocaleDateString();
 }
 
+const CHANNEL_EMOJI = {
+    whatsapp: '💬', telegram: '✈️', discord: '🎮', signal: '🔒',
+    email: '📧', slack: '💼', sms: '📱', irc: '🖥️', teams: '👥', matrix: '🟢',
+};
+
+function channelIcon(ch) {
+    return `<span class="channel-icon">${CHANNEL_EMOJI[ch] || '📨'} ${ch}</span>`;
+}
+
 function severityBadge(sev) {
     const labels = { 1: 'Low', 2: 'Medium', 3: 'High', 4: 'Critical', 5: 'Emergency' };
-    return `<span class="severity-badge severity-${sev}">${sev} - ${labels[sev] || '?'}</span>`;
+    return `<span class="severity-badge severity-${sev}">${sev} — ${labels[sev] || '?'}</span>`;
 }
 
 function statusBadge(status) {
     return `<span class="status-badge status-${status}">${status}</span>`;
 }
 
-const channelEmoji = {
-    whatsapp: '📱', telegram: '✈️', discord: '🎮', signal: '🔒',
-    email: '📧', slack: '💬', irc: '💻', sms: '📲', teams: '👥',
-};
-
-function channelIcon(ch) {
-    return `<span class="channel-icon">${channelEmoji[ch] || '💬'} ${ch}</span>`;
+function scamLabel(type) {
+    if (!type) return '—';
+    return type.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 }
 
-function emptyState(icon, message) {
-    return `<tr><td colspan="99"><div class="empty-state"><div class="icon">${icon}</div><div class="message">${message}</div></div></td></tr>`;
+function emptyState(icon, msg) {
+    return `<tr><td colspan="99"><div class="empty-state"><div class="icon">${icon}</div><div class="message">${msg}</div></div></td></tr>`;
 }
 
-// ─── Sessions ─────────────────────────────────────────────────
+function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// ─── Sessions View ───────────────────────────────────────────────────────────
 async function loadSessions() {
-    const status = document.getElementById('filter-status').value;
+    const status  = document.getElementById('filter-status').value;
     const channel = document.getElementById('filter-channel').value;
     const severity = document.getElementById('filter-severity').value;
 
@@ -132,38 +199,35 @@ async function loadSessions() {
     const tbody = document.getElementById('sessions-body');
 
     if (!data.sessions?.length) {
-        tbody.innerHTML = emptyState('🎣', 'No sessions yet. Waiting for scammers to bite...');
+        tbody.innerHTML = emptyState('🎣', 'No sessions yet. Waiting for scammers to bite…');
         return;
     }
 
     tbody.innerHTML = data.sessions.map(s => `
-        <tr onclick="openSession('${s.id}')">
+        <tr onclick="openSession('${s.id}')"
+            class="${s.severity >= 4 ? 'row-pulse' : ''}"
+            data-severity="${s.severity}">
             <td>${channelIcon(s.channel)}</td>
-            <td>${s.scam_type || '—'}</td>
+            <td>${scamLabel(s.scam_type)}</td>
             <td>${s.severity ? severityBadge(s.severity) : '—'}</td>
             <td>${s.persona || '—'}</td>
             <td>${statusBadge(s.status)}</td>
-            <td>${s.message_count}</td>
-            <td>${formatDuration(s.time_wasted_seconds)}</td>
+            <td><span class="msg-count">${s.message_count}</span></td>
+            <td class="time-wasted-cell">${formatDuration(s.time_wasted_seconds)}</td>
             <td>${formatTime(s.updated_at)}</td>
         </tr>
     `).join('');
 }
 
-// Session filters
 ['filter-status', 'filter-channel', 'filter-severity'].forEach(id => {
     document.getElementById(id).addEventListener('change', loadSessions);
 });
 
+// ─── Session Detail ──────────────────────────────────────────────────────────
 async function openSession(id) {
     currentSessionId = id;
     document.getElementById('session-detail').classList.remove('hidden');
     await loadSessionDetail(id);
-}
-
-function closeDetail() {
-    document.getElementById('session-detail').classList.add('hidden');
-    currentSessionId = null;
 }
 
 async function loadSessionDetail(id) {
@@ -173,26 +237,29 @@ async function loadSessionDetail(id) {
     ]);
 
     document.getElementById('detail-title').textContent =
-        `${channelEmoji[session.channel] || '💬'} ${session.scam_type || 'Unknown'} — ${session.persona || 'No persona'}`;
+        `${CHANNEL_EMOJI[session.channel] || '📨'} ${scamLabel(session.scam_type)} — ${session.persona || 'No persona'}`;
 
     document.getElementById('detail-info').innerHTML = `
-        <strong>Session:</strong> ${id.slice(0, 8)}...<br>
-        <strong>Channel:</strong> ${session.channel}<br>
-        <strong>Sender:</strong> ${session.sender_id}<br>
-        <strong>Type:</strong> ${session.scam_type || '—'}<br>
-        <strong>Severity:</strong> ${session.severity ? severityBadge(session.severity) : '—'}<br>
-        <strong>Mode:</strong> ${session.mode}<br>
-        <strong>Messages:</strong> ${session.message_count}<br>
-        <strong>Time Wasted:</strong> ${formatDuration(session.time_wasted_seconds)}<br>
-        <strong>Status:</strong> ${statusBadge(session.status)}
+        <div><strong>Session:</strong> ${id.slice(0, 12)}…</div>
+        <div><strong>Channel:</strong> ${session.channel}</div>
+        <div><strong>Sender:</strong> ${session.sender_id}</div>
+        <div><strong>Scam Type:</strong> ${scamLabel(session.scam_type)}</div>
+        <div><strong>Severity:</strong> ${session.severity ? severityBadge(session.severity) : '—'}</div>
+        <div><strong>Mode:</strong> ${session.mode === 'passive' ? '👁️ Passive' : '🎣 Active Bait'}</div>
+        <div><strong>Messages:</strong> ${session.message_count}</div>
+        <div><strong>Time Wasted:</strong> <span class="time-pulse">${formatDuration(session.time_wasted_seconds)}</span></div>
+        <div><strong>Status:</strong> ${statusBadge(session.status)}</div>
     `;
 
+    // Transcript — chat bubble view
     const feed = document.getElementById('transcript-feed');
     if (transcript.entries?.length) {
         feed.innerHTML = transcript.entries.map(e => `
-            <div class="msg msg-${e.direction}">
-                <div>${escapeHtml(e.content)}</div>
-                <div class="msg-meta">${e.direction === 'inbound' ? '🔴 Scammer' : '🎣 Bot'} · ${formatTime(e.timestamp)}</div>
+            <div class="msg msg-${e.direction}" style="animation: fadeSlideIn 0.3s ease">
+                <div class="msg-content">${escapeHtml(e.content)}</div>
+                <div class="msg-meta">
+                    ${e.direction === 'inbound' ? '🐟 Scammer' : '🎣 Bait'} · ${formatTime(e.timestamp)}
+                </div>
             </div>
         `).join('');
         feed.scrollTop = feed.scrollHeight;
@@ -200,27 +267,28 @@ async function loadSessionDetail(id) {
         feed.innerHTML = '<div class="empty-state"><div class="icon">📭</div><div class="message">No messages yet</div></div>';
     }
 
+    // Extracted intel
     const intelList = document.getElementById('detail-intel-list');
     if (session.intel?.length) {
         intelList.innerHTML = session.intel.map(i =>
-            `<span class="intel-chip" title="${i.platform}">${i.type}: ${i.value}</span>`
+            `<span class="intel-chip" title="${i.platform || ''}">${i.type}: <strong>${escapeHtml(i.value)}</strong></span>`
         ).join('');
     } else {
         intelList.innerHTML = '<span style="color:var(--text-dim);font-size:12px">No intel extracted yet</span>';
     }
 }
 
-function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
+function closeDetail() {
+    document.getElementById('session-detail').classList.add('hidden');
+    currentSessionId = null;
 }
 
 async function escalateSession() {
     if (!currentSessionId) return;
-    const sev = prompt('Set severity level (1-5):');
+    const sev = prompt('Set severity level (1-5):', '4');
     if (!sev || isNaN(sev) || sev < 1 || sev > 5) return;
     await api(`/api/sessions/${currentSessionId}/escalate?severity=${sev}`, { method: 'POST' });
+    showToast('Session escalated to severity ' + sev, 'warning');
     await loadSessionDetail(currentSessionId);
     loadSessions();
 }
@@ -229,11 +297,14 @@ async function closeSession() {
     if (!currentSessionId) return;
     if (!confirm('Close this session? The scammer will no longer receive responses.')) return;
     await api(`/api/sessions/${currentSessionId}/close`, { method: 'POST' });
-    await loadSessionDetail(currentSessionId);
+    showToast('Session closed', 'info');
+    closeDetail();
     loadSessions();
 }
 
-// ─── Intel ────────────────────────────────────────────────────
+// ─── Intel View ──────────────────────────────────────────────────────────────
+let intelSearchTimeout;
+
 async function loadIntel() {
     const type = document.getElementById('intel-type-filter').value;
     const search = document.getElementById('intel-search').value;
@@ -250,30 +321,35 @@ async function loadIntel() {
 
     const tbody = document.getElementById('intel-body');
     if (!data.items?.length) {
-        tbody.innerHTML = emptyState('🔍', 'No intel collected yet');
+        tbody.innerHTML = emptyState('🔍', search ? `No results for "${escapeHtml(search)}"` : 'No intel collected yet');
         return;
     }
 
     tbody.innerHTML = data.items.map(i => `
-        <tr>
-            <td><span class="intel-chip">${i.type}</span></td>
-            <td><strong>${escapeHtml(i.value)}</strong></td>
+        <tr onclick="viewIntelNetwork('${escapeHtml(i.value)}')" style="cursor:pointer">
+            <td><span class="intel-type-badge type-${i.type}">${i.type}</span></td>
+            <td class="mono"><strong>${escapeHtml(i.value)}</strong></td>
             <td>${i.platform || '—'}</td>
-            <td>${i.session_count ?? '—'}</td>
+            <td>${i.session_count != null ? `<span class="session-count">${i.session_count}</span>` : (i.session_id ? i.session_id.slice(0, 8) + '…' : '—')}</td>
             <td>${formatTime(i.first_seen)}</td>
             <td>${formatTime(i.last_seen)}</td>
         </tr>
     `).join('');
 }
 
+async function viewIntelNetwork(value) {
+    const data = await api(`/api/intel/network/${encodeURIComponent(value)}`);
+    showToast(`${data.session_count} linked session${data.session_count !== 1 ? 's' : ''} for "${value}"`, 'info');
+    // TODO: render force-directed graph in a modal
+}
+
 document.getElementById('intel-type-filter').addEventListener('change', loadIntel);
-let intelSearchTimeout;
 document.getElementById('intel-search').addEventListener('input', () => {
     clearTimeout(intelSearchTimeout);
     intelSearchTimeout = setTimeout(loadIntel, 300);
 });
 
-// ─── Reports ──────────────────────────────────────────────────
+// ─── Reports View ────────────────────────────────────────────────────────────
 async function loadReports() {
     const type = document.getElementById('report-type-filter').value;
     const status = document.getElementById('report-status-filter').value;
@@ -286,14 +362,16 @@ async function loadReports() {
     const tbody = document.getElementById('reports-body');
 
     if (!data.reports?.length) {
-        tbody.innerHTML = emptyState('📄', 'No reports generated yet');
+        tbody.innerHTML = emptyState('📋', 'No reports generated yet');
         return;
     }
 
+    const typeIcons = { ic3: '🏛️', ftc: '🛡️', ncmec: '🚨', local_pd: '👮', platform_abuse: '📢' };
+
     tbody.innerHTML = data.reports.map(r => `
         <tr onclick="openReport(${r.id})">
-            <td><span class="intel-chip">${r.report_type.toUpperCase()}</span></td>
-            <td>${r.session_id.slice(0, 8)}...</td>
+            <td>${typeIcons[r.report_type] || '📄'} ${r.report_type.toUpperCase()}</td>
+            <td>${r.session_id.slice(0, 12)}…</td>
             <td>${statusBadge(r.status)}</td>
             <td>${formatTime(r.generated_at)}</td>
             <td>${r.submitted_at ? formatTime(r.submitted_at) : '—'}</td>
@@ -310,14 +388,13 @@ document.getElementById('report-status-filter').addEventListener('change', loadR
 async function openReport(id) {
     currentReportId = id;
     const data = await api(`/api/reports/${id}`);
+
     document.getElementById('report-detail-title').textContent =
-        `${data.report_type.toUpperCase()} Report — Session ${data.session_id.slice(0, 8)}...`;
+        `${data.report_type.toUpperCase()} Report — Session ${data.session_id.slice(0, 12)}…`;
     document.getElementById('report-content').textContent = data.content || '(No content)';
 
-    document.getElementById('btn-mark-reviewed').style.display =
-        data.status === 'draft' ? '' : 'none';
-    document.getElementById('btn-mark-submitted').style.display =
-        data.status === 'reviewed' ? '' : 'none';
+    document.getElementById('btn-mark-reviewed').style.display = data.status === 'draft' ? '' : 'none';
+    document.getElementById('btn-mark-submitted').style.display = data.status === 'reviewed' ? '' : 'none';
 
     document.getElementById('report-detail').classList.remove('hidden');
 }
@@ -330,19 +407,21 @@ function closeReportDetail() {
 async function markReportReviewed() {
     if (!currentReportId) return;
     await api(`/api/reports/${currentReportId}/mark-reviewed`, { method: 'POST' });
+    showToast('Report marked as reviewed ✓', 'success');
     await openReport(currentReportId);
     loadReports();
 }
 
 async function markReportSubmitted() {
     if (!currentReportId) return;
-    if (!confirm('Mark this report as submitted? This indicates it has been filed with the relevant agency.')) return;
+    if (!confirm('Confirm this report has been submitted to the appropriate authority?')) return;
     await api(`/api/reports/${currentReportId}/mark-submitted`, { method: 'POST' });
+    showToast('Report marked as submitted ✓', 'success');
     await openReport(currentReportId);
     loadReports();
 }
 
-// ─── Analytics ────────────────────────────────────────────────
+// ─── Analytics View ──────────────────────────────────────────────────────────
 async function loadAnalytics() {
     const [summary, scamTypes, trends, effectiveness, channels] = await Promise.all([
         api('/api/analytics/summary'),
@@ -352,153 +431,209 @@ async function loadAnalytics() {
         api('/api/analytics/channels'),
     ]);
 
-    // Summary cards
+    summarySnapshot = summary;
+    renderSummaryCards(summary);
+    renderTrendsChart(trends);
+    renderScamTypesChart(scamTypes);
+    renderTimeWastedChart(scamTypes);
+    renderChannelsChart(channels);
+    renderEffectiveness(effectiveness);
+    startLiveCounters();
+}
+
+function renderSummaryCards(s) {
     document.getElementById('summary-cards').innerHTML = `
         <div class="summary-card">
             <div class="label">Total Sessions</div>
-            <div class="value accent">${summary.total_sessions}</div>
+            <div class="value accent" id="live-total">${s.total_sessions}</div>
         </div>
         <div class="summary-card">
             <div class="label">Active Now</div>
-            <div class="value green">${summary.active_sessions}</div>
+            <div class="value green" id="live-active">${s.active_sessions}</div>
         </div>
         <div class="summary-card">
-            <div class="label">Time Wasted</div>
-            <div class="value orange">${summary.total_time_wasted_hours}h</div>
+            <div class="label">🕐 Time Wasted</div>
+            <div class="value orange" id="live-time">${formatDuration(s.total_time_wasted_seconds)}</div>
         </div>
         <div class="summary-card">
-            <div class="label">Messages Sent</div>
-            <div class="value">${summary.total_messages}</div>
+            <div class="label">Messages Exchanged</div>
+            <div class="value">${(s.total_messages || 0).toLocaleString()}</div>
         </div>
         <div class="summary-card">
-            <div class="label">Intel Collected</div>
-            <div class="value accent">${summary.total_intel_items}</div>
+            <div class="label">🔍 Intel Collected</div>
+            <div class="value accent">${s.total_intel_items}</div>
         </div>
         <div class="summary-card">
             <div class="label">Reports Generated</div>
-            <div class="value">${summary.total_reports}</div>
+            <div class="value">${s.total_reports}</div>
         </div>
         <div class="summary-card">
-            <div class="label">Reports Submitted</div>
-            <div class="value green">${summary.reports_submitted}</div>
+            <div class="label">✅ Reports Submitted</div>
+            <div class="value green">${s.reports_submitted}</div>
         </div>
     `;
+}
 
-    // Trends chart
+function startLiveCounters() {
+    if (liveCounterInterval) clearInterval(liveCounterInterval);
+    if (!summarySnapshot) return;
+
+    let currentSec = summarySnapshot.total_time_wasted_seconds || 0;
+    const active = summarySnapshot.active_sessions || 0;
+
+    liveCounterInterval = setInterval(() => {
+        if (currentView !== 'analytics' || active === 0) return;
+        currentSec += active; // each active session wastes 1s per second
+        const el = document.getElementById('live-time');
+        if (el) el.textContent = formatDuration(currentSec);
+    }, 1000);
+}
+
+function renderTrendsChart(data) {
     renderChart('chart-trends', 'line', {
-        labels: trends.daily?.map(d => d.date) || [],
+        labels: data.daily?.map(d => d.date) || [],
         datasets: [
             {
                 label: 'Sessions',
-                data: trends.daily?.map(d => d.sessions) || [],
+                data: data.daily?.map(d => d.sessions) || [],
                 borderColor: '#3b82f6',
                 backgroundColor: 'rgba(59,130,246,0.1)',
-                fill: true,
-                tension: 0.3,
+                fill: true, tension: 0.4,
             },
             {
                 label: 'Messages',
-                data: trends.daily?.map(d => d.messages) || [],
+                data: data.daily?.map(d => d.messages) || [],
                 borderColor: '#10b981',
                 backgroundColor: 'rgba(16,185,129,0.1)',
-                fill: true,
-                tension: 0.3,
+                fill: true, tension: 0.4,
+                yAxisID: 'y1',
             },
         ],
+    }, {
+        scales: {
+            x:  { ticks: { color: '#6b7280' }, grid: { color: '#1f2937' } },
+            y:  { ticks: { color: '#6b7280' }, grid: { color: '#1f2937' }, beginAtZero: true },
+            y1: { position: 'right', ticks: { color: '#6b7280' }, grid: { display: false }, beginAtZero: true },
+        },
     });
-
-    // Scam types chart
-    const typeColors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#a855f7', '#f97316', '#06b6d4', '#ec4899'];
-    renderChart('chart-scam-types', 'doughnut', {
-        labels: scamTypes.types?.map(t => t.scam_type) || [],
-        datasets: [{
-            data: scamTypes.types?.map(t => t.count) || [],
-            backgroundColor: typeColors,
-        }],
-    });
-
-    // Time wasted chart
-    renderChart('chart-time-wasted', 'bar', {
-        labels: scamTypes.types?.map(t => t.scam_type) || [],
-        datasets: [{
-            label: 'Hours Wasted',
-            data: scamTypes.types?.map(t => Math.round(t.total_time_seconds / 3600 * 10) / 10) || [],
-            backgroundColor: '#f59e0b',
-        }],
-    });
-
-    // Channels chart
-    renderChart('chart-channels', 'doughnut', {
-        labels: channels.channels?.map(c => c.channel) || [],
-        datasets: [{
-            data: channels.channels?.map(c => c.count) || [],
-            backgroundColor: typeColors,
-        }],
-    });
-
-    // Effectiveness
-    document.getElementById('effectiveness-metrics').innerHTML = `
-        <div class="metric">
-            <div class="label">Avg Session Duration</div>
-            <div class="value">${effectiveness.avg_session_duration_minutes}m</div>
-        </div>
-        <div class="metric">
-            <div class="label">Avg Messages / Session</div>
-            <div class="value">${effectiveness.avg_messages_per_session}</div>
-        </div>
-        <div class="metric">
-            <div class="label">Intel Extraction Rate</div>
-            <div class="value">${effectiveness.intel_extraction_rate}%</div>
-        </div>
-        <div class="metric">
-            <div class="label">Report Generation Rate</div>
-            <div class="value">${effectiveness.report_generation_rate}%</div>
-        </div>
-    `;
-
-    document.getElementById('top-scammers-body').innerHTML =
-        (effectiveness.top_scammer_identifiers || []).map(s => `
-            <tr>
-                <td><span class="intel-chip">${s.type}</span></td>
-                <td>${escapeHtml(s.value)}</td>
-                <td>${s.session_count}</td>
-            </tr>
-        `).join('') || '<tr><td colspan="3" style="text-align:center;color:var(--text-dim)">No data yet</td></tr>';
 }
 
-function renderChart(canvasId, type, data) {
+function renderScamTypesChart(data) {
+    const colors = ['#3b82f6','#10b981','#f59e0b','#ef4444','#a855f7','#f97316','#06b6d4','#ec4899'];
+    renderChart('chart-scam-types', 'doughnut', {
+        labels: data.types?.map(t => scamLabel(t.scam_type)) || [],
+        datasets: [{
+            data: data.types?.map(t => t.count) || [],
+            backgroundColor: colors, borderColor: '#111827', borderWidth: 2,
+        }],
+    });
+}
+
+function renderTimeWastedChart(data) {
+    renderChart('chart-time-wasted', 'bar', {
+        labels: data.types?.map(t => scamLabel(t.scam_type)) || [],
+        datasets: [{
+            label: 'Hours Wasted',
+            data: data.types?.map(t => +(t.total_time_seconds / 3600).toFixed(1)) || [],
+            backgroundColor: 'rgba(249,115,22,0.6)', borderColor: '#f97316', borderWidth: 1,
+        }],
+    }, { indexAxis: 'y' });
+}
+
+function renderChannelsChart(data) {
+    const colors = ['#3b82f6','#10b981','#a855f7','#f59e0b','#ef4444','#06b6d4','#ec4899'];
+    renderChart('chart-channels', 'polarArea', {
+        labels: data.channels?.map(c => c.channel) || [],
+        datasets: [{
+            data: data.channels?.map(c => c.count) || [],
+            backgroundColor: colors.map(c => c + '80'), borderColor: colors, borderWidth: 1,
+        }],
+    }, { scales: { r: { grid: { color: '#1f2937' }, ticks: { display: false } } } });
+}
+
+function renderChart(canvasId, type, data, extraOpts = {}) {
     if (charts[canvasId]) charts[canvasId].destroy();
     const ctx = document.getElementById(canvasId)?.getContext('2d');
     if (!ctx) return;
 
+    const isDoughnutLike = type === 'doughnut' || type === 'polarArea';
     charts[canvasId] = new Chart(ctx, {
-        type,
-        data,
+        type, data,
         options: {
             responsive: true,
             maintainAspectRatio: true,
             plugins: {
                 legend: {
                     labels: { color: '#9ca3af', font: { size: 11 } },
-                    position: type === 'doughnut' ? 'right' : 'top',
+                    position: isDoughnutLike ? 'right' : 'top',
                 },
             },
-            scales: type === 'doughnut' ? {} : {
+            scales: isDoughnutLike ? (extraOpts.scales || {}) : {
                 x: { ticks: { color: '#9ca3af' }, grid: { color: '#1f2937' } },
                 y: { ticks: { color: '#9ca3af' }, grid: { color: '#1f2937' }, beginAtZero: true },
             },
+            ...extraOpts,
         },
     });
 }
 
-// ─── Keyboard Shortcuts ───────────────────────────────────────
+function renderEffectiveness(data) {
+    document.getElementById('effectiveness-metrics').innerHTML = `
+        <div class="metric">
+            <div class="label">Avg Session Duration</div>
+            <div class="value">${data.avg_session_duration_minutes}m</div>
+        </div>
+        <div class="metric">
+            <div class="label">Avg Messages / Session</div>
+            <div class="value">${data.avg_messages_per_session}</div>
+        </div>
+        <div class="metric">
+            <div class="label">Intel Extraction Rate</div>
+            <div class="value">${data.intel_extraction_rate}%</div>
+        </div>
+        <div class="metric">
+            <div class="label">Report Generation Rate</div>
+            <div class="value">${data.report_generation_rate}%</div>
+        </div>
+    `;
+
+    const tbody = document.getElementById('top-scammers-body');
+    const items = data.top_scammer_identifiers || [];
+    if (items.length) {
+        tbody.innerHTML = items.map(s => `
+            <tr onclick="viewIntelNetwork('${escapeHtml(s.value)}')" style="cursor:pointer">
+                <td><span class="intel-type-badge type-${s.type}">${s.type}</span></td>
+                <td class="mono">${escapeHtml(s.value)}</td>
+                <td>${s.session_count}</td>
+            </tr>
+        `).join('');
+    } else {
+        tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;color:var(--text-dim)">No repeat offenders yet</td></tr>';
+    }
+}
+
+// ─── Keyboard Shortcuts ──────────────────────────────────────────────────────
 document.addEventListener('keydown', e => {
-    if (e.key === 'Escape') {
-        closeDetail();
-        closeReportDetail();
+    // Don't intercept if typing in an input
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
+
+    if (e.key === 'Escape') { closeDetail(); closeReportDetail(); }
+    if (e.key === '1') switchView('sessions');
+    if (e.key === '2') switchView('intel');
+    if (e.key === '3') switchView('reports');
+    if (e.key === '4') switchView('analytics');
+    if (e.key === 'r' && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        switch (currentView) {
+            case 'sessions':  loadSessions(); break;
+            case 'intel':     loadIntel(); break;
+            case 'reports':   loadReports(); break;
+            case 'analytics': loadAnalytics(); break;
+        }
+        showToast('Refreshed', 'info');
     }
 });
 
-// ─── Init ─────────────────────────────────────────────────────
+// ─── Init ────────────────────────────────────────────────────────────────────
 connectWS();
 loadSessions();
