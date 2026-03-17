@@ -51,12 +51,17 @@ def _build_stats(db: DBSession, session_id: str | None = None) -> dict:
     for persona, count in persona_rows:
         # Normalize persona name to key
         key = persona.lower().strip().replace(" ", "_").replace("-", "_")
-        # Map display names to keys
+        # Map display names and aliases to canonical keys
         name_map = {
             "confused_edna": "confused_edna", "edna": "confused_edna",
+            "confused_elderly": "confused_edna", "elderly_tech_novice": "confused_edna",
             "eager_investor": "eager_investor", "brad": "eager_investor",
+            "chad": "eager_investor", "the_eager_investor": "eager_investor",
             "lonely_heart": "lonely_heart", "diane": "lonely_heart",
+            "the_lonely_heart": "lonely_heart", "lonely_romantic": "lonely_heart",
             "counter_scammer": "counter_scammer", "viktor": "counter_scammer",
+            "the_counter_scammer": "counter_scammer", "competing_scammer": "counter_scammer",
+            "chaos_agent": "counter_scammer",
             "helpful_clueless": "helpful_clueless", "pat": "helpful_clueless",
             "helpful_but_clueless": "helpful_clueless",
             "wealthy_cautious": "wealthy_cautious", "richard": "wealthy_cautious",
