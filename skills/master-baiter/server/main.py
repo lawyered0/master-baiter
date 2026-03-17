@@ -88,8 +88,14 @@ async def websocket_endpoint(websocket: WebSocket):
     await manager.connect(websocket)
     try:
         while True:
-            # Keep connection alive, receive any client messages
-            data = await websocket.receive_text()
+            # receive_text has an implicit timeout via Starlette; we also
+            # send periodic pings so the browser doesn't consider us idle.
+            try:
+                data = await asyncio.wait_for(websocket.receive_text(), timeout=30)
+            except asyncio.TimeoutError:
+                # No client message in 30s — send a ping to keep the
+                # connection alive and detect stale sockets early.
+                await websocket.send_json({"type": "ping"})
     except WebSocketDisconnect:
         manager.disconnect(websocket)
     except Exception:

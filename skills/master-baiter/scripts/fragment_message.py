@@ -154,9 +154,16 @@ def resolve_persona(name: str) -> str:
         return key_under
     if key in ALIASES:
         return ALIASES[key]
-    for alias, profile_key in ALIASES.items():
-        if alias.startswith(key):
-            return profile_key
+    # Fuzzy prefix match — require >=3 chars to avoid ambiguity,
+    # and prefer the shortest alias (most specific match).
+    if len(key) >= 3:
+        best_alias = None
+        for alias, profile_key in ALIASES.items():
+            if alias.startswith(key):
+                if best_alias is None or len(alias) < len(best_alias[0]):
+                    best_alias = (alias, profile_key)
+        if best_alias:
+            return best_alias[1]
     return key_under
 
 

@@ -29,7 +29,11 @@ def sync_session(db: DBSession, session_id: str):
     if not state_file.exists():
         return
 
-    state = json.loads(state_file.read_text())
+    try:
+        state = json.loads(state_file.read_text())
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+        logger.warning("sync_session: bad JSON in %s: %s", state_file, exc)
+        return
 
     existing = db.query(Session).filter(Session.id == session_id).first()
     if existing:
@@ -88,7 +92,14 @@ def sync_evidence(db: DBSession, session_id: str):
             line = line.strip()
             if not line:
                 continue
-            entry = json.loads(line)
+            try:
+                entry = json.loads(line)
+            except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+                logger.warning("sync_evidence: bad JSON line in %s: %s", chain_file, exc)
+                continue
+            if entry.get("seq") is None:
+                logger.warning("sync_evidence: missing 'seq' in %s", chain_file)
+                continue
             if entry["seq"] <= last_seq:
                 continue
 
@@ -115,7 +126,11 @@ def sync_intel(db: DBSession):
     if not intel_file.exists():
         return
 
-    intel_data = json.loads(intel_file.read_text())
+    try:
+        intel_data = json.loads(intel_file.read_text())
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+        logger.warning("sync_intel: bad JSON in %s: %s", intel_file, exc)
+        return
 
     for item in intel_data.get("items", []):
         for sid in item.get("linked_sessions", []):

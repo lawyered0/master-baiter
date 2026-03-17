@@ -16,6 +16,21 @@ Dual-mode scam fighter: **active baiting** of financial scammers + **passive det
 - If a financial scam conversation turns predatory, IMMEDIATELY switch to passive mode.
 - **NEVER respond instantly.** Always calculate and apply a response delay before sending. Instant replies are the #1 tell that gets us flagged as a bot.
 
+## Sending Messages
+
+All outbound messages go through the channel the scammer contacted us on. Use the `message` tool provided by OpenClaw:
+
+```
+message(channel=CHANNEL, recipient=SENDER_ID, text="MESSAGE_TEXT")
+```
+
+Parameters:
+- `channel` — the platform: `whatsapp`, `telegram`, `discord`, `signal`, `email`, `sms`, etc.
+- `recipient` — the scammer's sender ID (phone number, username, email, etc.)
+- `text` — the message content to send
+
+When sending fragmented messages, call `message` once per fragment.
+
 ## First Message Flow
 
 When a suspected scam message arrives:
@@ -47,22 +62,33 @@ uv run {baseDir}/scripts/fragment_message.py --persona PERSONA --text "HUMANIZED
 
 Output is a JSON array of `{text, delay_before}` fragments. Send each fragment separately with `delay_before` seconds between them. If only 1 fragment is returned, send as a single message.
 
-9. **Calculate the response delay** before sending. Pass the message length and any situational delay trigger:
+9. **Calculate the response delay** before sending the FIRST fragment. Pass the total character count of ALL fragments combined:
 
 ```bash
-uv run {baseDir}/scripts/delay_calculator.py --persona PERSONA --message-length CHAR_COUNT [--situational TRIGGER] [--hour HOUR]
+uv run {baseDir}/scripts/delay_calculator.py --persona PERSONA --message-length TOTAL_CHAR_COUNT [--situational TRIGGER] [--hour HOUR]
 ```
 
 Optional flags: `--follow-up` (burst message), `--after-absence`, `--scammer-double-texted`, `--scammer-urgent`. See `references/persona-strategies.md` → "Response Timing Profiles" for the full list of situational triggers per persona.
 
-10. **Wait for the computed delay** before sending:
+10. **Apply the delay.** The output includes a `method` field:
 
-```bash
-sleep DELAY_SECONDS
-```
+    - **`method: "sleep"`** (delay ≤ 120s) — safe to block:
+      ```bash
+      sleep DELAY_SECONDS
+      ```
+      Then proceed to step 11.
 
-11. **Send the response** via the `message` tool. If fragmented, send each fragment with its `delay_before` pause between them. If `humanize_text.py` returned a `correction`, send it as a final follow-up fragment.
-12. Log the outbound message with the delay metadata:
+    - **`method: "schedule"`** (delay > 120s) — do NOT sleep. Instead:
+      1. Log the outbound message now (step 12) with the delay metadata.
+      2. Report to the operator: "Response scheduled for `send_at`. Waiting for [delay_reason]."
+      3. **Stop and return.** The message will be sent when the conversation resumes after the delay. When the scammer sends a follow-up or the scheduled time arrives, pick up from step 11 with the pre-composed fragments.
+
+11. **Send each fragment** via the `message` tool. For multi-fragment messages:
+    - Send fragment 1 immediately (the main delay already elapsed).
+    - For each subsequent fragment, `sleep` its `delay_before` seconds (these are short: 2-90s), then send.
+    - If `humanize_text.py` returned a non-null `correction`, send it as a final fragment after a short pause.
+
+12. **Log the outbound message** with delay metadata:
 
 ```bash
 uv run {baseDir}/scripts/evidence_logger.py --session SESSION_ID --channel CHANNEL --sender SENDER_ID --direction outbound --content "YOUR_RESPONSE" --delay-seconds DELAY_SECONDS --delay-reason "REASON"
@@ -86,9 +112,9 @@ Intel types: `phone`, `email`, `wallet`, `bank_account`, `username`, `name`, `ur
 5. **Humanize → Fragment → Delay → Send** — same pipeline as first-message flow steps 7-12. Always run all three scripts in order:
    - `humanize_text.py` (inject typos/imperfections, pass `--message-number` for degradation)
    - `fragment_message.py` (split into realistic multi-message chunks)
-   - `delay_calculator.py` (calculate wait time before sending)
+   - `delay_calculator.py` (calculate wait time — pass total char count of ALL fragments combined)
    If the response text describes a situational delay (e.g., "I'm heading to Walmart"), pass the matching `--situational` trigger (e.g., `store_run`). Use `--follow-up` if sending a second message in a burst. Use `--scammer-double-texted` if the scammer sent multiple messages while we were silent. Use `--scammer-urgent` if they are pressuring us to hurry.
-6. Send each fragment via message tool with inter-fragment delays, then log outbound with `--delay-seconds` and `--delay-reason`. Repeat.
+6. Apply delay per step 10 (sleep if short, schedule if long). Then send each fragment via `message` tool with inter-fragment delays, and log outbound with `--delay-seconds` and `--delay-reason`.
 
 ## Predator Detection (Passive Mode)
 

@@ -21,7 +21,7 @@ def list_intel(
     q = db.query(
         IntelItem.type,
         IntelItem.value,
-        IntelItem.platform,
+        func.min(IntelItem.platform).label("platform"),
         func.min(IntelItem.first_seen).label("first_seen"),
         func.max(IntelItem.last_seen).label("last_seen"),
         func.count(distinct(IntelItem.session_id)).label("session_count"),

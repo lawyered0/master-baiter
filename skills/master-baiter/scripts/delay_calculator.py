@@ -163,10 +163,16 @@ def resolve_persona(name: str) -> str:
     # Alias match (aliases use spaces)
     if key in ALIASES:
         return ALIASES[key]
-    # Fuzzy match: check if any alias starts with the input
-    for alias, profile_key in ALIASES.items():
-        if alias.startswith(key):
-            return profile_key
+    # Fuzzy prefix match — require >=3 chars to avoid ambiguity,
+    # and prefer the shortest alias (most specific match).
+    if len(key) >= 3:
+        best_alias = None
+        for alias, profile_key in ALIASES.items():
+            if alias.startswith(key):
+                if best_alias is None or len(alias) < len(best_alias[0]):
+                    best_alias = (alias, profile_key)
+        if best_alias:
+            return best_alias[1]
     return key_under
 
 
@@ -216,7 +222,7 @@ def calculate_delay(
 
     # 4. Time-of-day multiplier
     if hour < 0:
-        hour = datetime.now().hour
+        hour = datetime.now(timezone.utc).hour
     tod_mult = time_of_day_multiplier(hour)
     breakdown.append(f"time_of_day ({hour}:00): ×{tod_mult:.1f}")
 
@@ -265,9 +271,25 @@ def calculate_delay(
 
     breakdown.append(f"TOTAL: {total}s ({total // 60}m {total % 60}s)")
 
+    # Compute an absolute send_at timestamp so the caller can schedule
+    # instead of blocking on a sleep (critical for long delays).
+    now = datetime.now(timezone.utc)
+    send_at = now + __import__("datetime").timedelta(seconds=total)
+
+    # Classify the delay so the caller knows whether to sleep or schedule.
+    # ≤ 120s  → "sleep"    — safe to block in a tool call
+    # > 120s  → "schedule" — caller must defer (sleep will timeout the agent)
+    if total <= 120:
+        method = "sleep"
+    else:
+        method = "schedule"
+        breakdown.append(f"⚠ delay > 120s — use schedule, do NOT sleep")
+
     return {
         "delay_seconds": total,
         "delay_minutes": round(total / 60, 1),
+        "send_at": send_at.isoformat(),
+        "method": method,
         "breakdown": breakdown,
         "persona_key": persona_key,
     }

@@ -19,6 +19,9 @@ WORKSPACE = Path(os.environ.get("OPENCLAW_WORKSPACE", Path.home() / ".openclaw" 
 SCRIPTS_DIR = Path(__file__).resolve().parent.parent.parent / "scripts"
 
 
+_SAFE_ID = re.compile(r'^[a-zA-Z0-9_-]+$')
+
+
 @router.get("/{session_id}")
 def get_evidence(
     session_id: str,
@@ -26,6 +29,8 @@ def get_evidence(
     offset: int = Query(0),
     db: DBSession = Depends(get_db),
 ):
+    if not _SAFE_ID.match(session_id):
+        raise HTTPException(status_code=400, detail="Invalid session ID format")
     entries = (
         db.query(EvidenceEntry)
         .filter(EvidenceEntry.session_id == session_id)
@@ -60,20 +65,30 @@ def get_evidence(
 @router.get("/{session_id}/verify")
 def verify_evidence(session_id: str):
     """Run hash chain verification on a session's evidence."""
-    if not re.match(r'^[a-zA-Z0-9_-]+$', session_id):
+    if not _SAFE_ID.match(session_id):
         raise HTTPException(status_code=400, detail="Invalid session ID format")
     script = SCRIPTS_DIR / "hash_verify.py"
-    result = subprocess.run(
-        [sys.executable, str(script), "--session", session_id],
-        capture_output=True,
-        text=True,
-        env={**os.environ, "OPENCLAW_WORKSPACE": str(WORKSPACE)},
-    )
+    try:
+        result = subprocess.run(
+            [sys.executable, str(script), "--session", session_id],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            env={**os.environ, "OPENCLAW_WORKSPACE": str(WORKSPACE)},
+        )
+    except subprocess.TimeoutExpired:
+        return {"valid": False, "error": "Verification timed out"}
 
     try:
-        return json.loads(result.stdout)
+        parsed = json.loads(result.stdout)
     except json.JSONDecodeError:
         return {
             "valid": False,
             "error": result.stderr or "Verification failed",
         }
+
+    # Don't trust stdout alone — check exit code too
+    if result.returncode != 0 and parsed.get("valid", False):
+        parsed["valid"] = False
+        parsed["error"] = parsed.get("error", "Verifier exited with error")
+    return parsed

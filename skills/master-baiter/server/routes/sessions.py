@@ -1,5 +1,6 @@
 """Session management API routes."""
 
+import re
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session as DBSession
@@ -7,6 +8,8 @@ from sqlalchemy import desc
 
 from db import get_db
 from models import Session, EvidenceEntry, IntelItem, Report
+
+_SAFE_ID = re.compile(r'^[a-zA-Z0-9_-]+$')
 
 router = APIRouter(prefix="/api/sessions", tags=["sessions"])
 
@@ -64,6 +67,8 @@ def list_sessions(
 
 @router.get("/{session_id}")
 def get_session(session_id: str, db: DBSession = Depends(get_db)):
+    if not _SAFE_ID.match(session_id):
+        raise HTTPException(status_code=400, detail="Invalid session ID format")
     session = db.query(Session).filter(Session.id == session_id).first()
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
@@ -108,6 +113,8 @@ def get_transcript(
     offset: int = Query(0),
     db: DBSession = Depends(get_db),
 ):
+    if not _SAFE_ID.match(session_id):
+        raise HTTPException(status_code=400, detail="Invalid session ID format")
     entries = (
         db.query(EvidenceEntry)
         .filter(EvidenceEntry.session_id == session_id)
@@ -135,6 +142,8 @@ def get_transcript(
 
 @router.post("/{session_id}/escalate")
 def escalate_session(session_id: str, severity: int = Query(..., ge=1, le=5), db: DBSession = Depends(get_db)):
+    if not _SAFE_ID.match(session_id):
+        raise HTTPException(status_code=400, detail="Invalid session ID format")
     session = db.query(Session).filter(Session.id == session_id).first()
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
@@ -149,6 +158,8 @@ def escalate_session(session_id: str, severity: int = Query(..., ge=1, le=5), db
 
 @router.post("/{session_id}/close")
 def close_session(session_id: str, db: DBSession = Depends(get_db)):
+    if not _SAFE_ID.match(session_id):
+        raise HTTPException(status_code=400, detail="Invalid session ID format")
     session = db.query(Session).filter(Session.id == session_id).first()
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")

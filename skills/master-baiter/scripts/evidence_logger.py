@@ -115,38 +115,46 @@ def update_session_state(
 ):
     session_dir = get_session_dir(session_id)
     state_file = session_dir / "state.json"
+    lock_file = session_dir / "state.lock"
 
-    if state_file.exists():
-        state = json.loads(state_file.read_text())
-        state["updated_at"] = datetime.now(timezone.utc).isoformat()
-        state["message_count"] = state.get("message_count", 0) + 1
-        if scam_type:
-            state["scam_type"] = scam_type
-        if severity is not None and severity != state.get("severity"):
-            state["severity"] = severity
-        if persona:
-            state["persona"] = persona
-        if delay_seconds is not None and delay_seconds > 0:
-            state["total_delay_seconds"] = state.get("total_delay_seconds", 0) + delay_seconds
-            state["last_delay_seconds"] = delay_seconds
-    else:
-        state = {
-            "session_id": session_id,
-            "channel": channel,
-            "sender_id": sender_id,
-            "scam_type": scam_type,
-            "severity": severity,
-            "persona": persona,
-            "mode": mode,
-            "status": "active",
-            "message_count": 1,
-            "total_delay_seconds": delay_seconds,
-            "last_delay_seconds": delay_seconds,
-            "created_at": datetime.now(timezone.utc).isoformat(),
-            "updated_at": datetime.now(timezone.utc).isoformat(),
-        }
+    # Lock to prevent concurrent read-modify-write races on state.json
+    with open(lock_file, "w") as lf:
+        fcntl.flock(lf, fcntl.LOCK_EX)
+        try:
+            if state_file.exists():
+                state = json.loads(state_file.read_text())
+                state["updated_at"] = datetime.now(timezone.utc).isoformat()
+                state["message_count"] = state.get("message_count", 0) + 1
+                if scam_type:
+                    state["scam_type"] = scam_type
+                if severity is not None and severity != state.get("severity"):
+                    state["severity"] = severity
+                if persona:
+                    state["persona"] = persona
+                if delay_seconds is not None and delay_seconds > 0:
+                    state["total_delay_seconds"] = state.get("total_delay_seconds", 0) + delay_seconds
+                    state["last_delay_seconds"] = delay_seconds
+            else:
+                state = {
+                    "session_id": session_id,
+                    "channel": channel,
+                    "sender_id": sender_id,
+                    "scam_type": scam_type,
+                    "severity": severity,
+                    "persona": persona,
+                    "mode": mode,
+                    "status": "active",
+                    "message_count": 1,
+                    "total_delay_seconds": delay_seconds,
+                    "last_delay_seconds": delay_seconds,
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                    "updated_at": datetime.now(timezone.utc).isoformat(),
+                }
 
-    state_file.write_text(json.dumps(state, indent=2))
+            state_file.write_text(json.dumps(state, indent=2))
+        finally:
+            fcntl.flock(lf, fcntl.LOCK_UN)
+
     return state
 
 
@@ -155,36 +163,43 @@ def extract_intel(session_id: str, intel_type: str, value: str, platform: str = 
     analytics_dir = BASE_DIR / "analytics"
     analytics_dir.mkdir(parents=True, exist_ok=True)
     intel_file = analytics_dir / "intel-db.json"
+    lock_file = analytics_dir / "intel-db.lock"
 
-    if intel_file.exists():
-        db = json.loads(intel_file.read_text())
-    else:
-        db = {"items": []}
+    # Lock to prevent concurrent read-modify-write races on intel-db.json
+    with open(lock_file, "w") as lf:
+        fcntl.flock(lf, fcntl.LOCK_EX)
+        try:
+            if intel_file.exists():
+                db = json.loads(intel_file.read_text())
+            else:
+                db = {"items": []}
 
-    now = datetime.now(timezone.utc).isoformat()
+            now = datetime.now(timezone.utc).isoformat()
 
-    # Check if this intel already exists
-    existing = None
-    for item in db["items"]:
-        if item["type"] == intel_type and item["value"] == value:
-            existing = item
-            break
+            # Check if this intel already exists
+            existing = None
+            for item in db["items"]:
+                if item["type"] == intel_type and item["value"] == value:
+                    existing = item
+                    break
 
-    if existing:
-        existing["last_seen"] = now
-        if session_id not in existing["linked_sessions"]:
-            existing["linked_sessions"].append(session_id)
-    else:
-        db["items"].append({
-            "type": intel_type,
-            "value": value,
-            "platform": platform,
-            "first_seen": now,
-            "last_seen": now,
-            "linked_sessions": [session_id],
-        })
+            if existing:
+                existing["last_seen"] = now
+                if session_id not in existing["linked_sessions"]:
+                    existing["linked_sessions"].append(session_id)
+            else:
+                db["items"].append({
+                    "type": intel_type,
+                    "value": value,
+                    "platform": platform,
+                    "first_seen": now,
+                    "last_seen": now,
+                    "linked_sessions": [session_id],
+                })
 
-    intel_file.write_text(json.dumps(db, indent=2))
+            intel_file.write_text(json.dumps(db, indent=2))
+        finally:
+            fcntl.flock(lf, fcntl.LOCK_UN)
 
 
 def main():

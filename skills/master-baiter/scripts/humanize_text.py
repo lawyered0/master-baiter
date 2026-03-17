@@ -190,9 +190,16 @@ def resolve_persona(name: str) -> str:
         return key_under
     if key in ALIASES:
         return ALIASES[key]
-    for alias, profile_key in ALIASES.items():
-        if alias.startswith(key):
-            return profile_key
+    # Fuzzy prefix match — require >=3 chars to avoid ambiguity,
+    # and prefer the shortest alias (most specific match).
+    if len(key) >= 3:
+        best_alias = None
+        for alias, profile_key in ALIASES.items():
+            if alias.startswith(key):
+                if best_alias is None or len(alias) < len(best_alias[0]):
+                    best_alias = (alias, profile_key)
+        if best_alias:
+            return best_alias[1]
     return key_under
 
 
@@ -373,10 +380,11 @@ def humanize(text: str, persona: str, message_number: int = 1) -> dict:
     mutations = []
 
     # --- Degradation over time ---
-    # After message 20+, everyone gets sloppier
+    # After message 20+, everyone gets sloppier — but plateaus at 40% extra
+    # errors (~message 33). Real humans don't degrade linearly forever.
     degradation_mult = 1.0
     if message_number > 20:
-        degradation_mult = 1.0 + min((message_number - 20) * 0.03, 0.6)  # Up to 60% more errors
+        degradation_mult = 1.0 + min((message_number - 20) * 0.03, 0.4)
         mutations.append(f"degradation_multiplier: {degradation_mult:.2f} (message #{message_number})")
 
     # --- Apply malapropisms first (before word-level processing) ---
