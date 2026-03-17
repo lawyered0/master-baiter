@@ -171,12 +171,17 @@ def sync_reports(db: DBSession, session_id: str):
 
         if not existing:
             mtime = datetime.fromtimestamp(report_file.stat().st_mtime, tz=timezone.utc)
+            # Store path relative to workspace so it survives workspace moves
+            try:
+                rel_path = str(report_file.relative_to(WORKSPACE))
+            except ValueError:
+                rel_path = str(report_file)
             db.add(Report(
                 session_id=session_id,
                 report_type=report_type,
                 status="draft",
                 generated_at=mtime,
-                file_path=str(report_file),
+                file_path=rel_path,
             ))
 
     db.commit()

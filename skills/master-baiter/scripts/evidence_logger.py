@@ -9,6 +9,7 @@ for tamper-evident evidence storage.
 """
 
 import argparse
+import fcntl
 import hashlib
 import json
 import os
@@ -65,31 +66,39 @@ def log_evidence(
 ) -> dict:
     evidence_dir = get_evidence_dir(session_id)
     chain_file = evidence_dir / "chain.jsonl"
+    lock_file = evidence_dir / "chain.lock"
 
-    previous_hash, last_seq = get_last_chain_hash(chain_file)
-    seq = last_seq + 1
-    timestamp = datetime.now(timezone.utc).isoformat()
+    # Acquire an exclusive file lock so concurrent writers on the same
+    # session can't both read the same last_chain_hash and fork the chain.
+    with open(lock_file, "w") as lf:
+        fcntl.flock(lf, fcntl.LOCK_EX)
+        try:
+            previous_hash, last_seq = get_last_chain_hash(chain_file)
+            seq = last_seq + 1
+            timestamp = datetime.now(timezone.utc).isoformat()
 
-    content_hash = compute_hash(content)
-    chain_input = f"{previous_hash}:{timestamp}:{content_hash}"
-    chain_hash = compute_hash(chain_input)
+            content_hash = compute_hash(content)
+            chain_input = f"{previous_hash}:{timestamp}:{content_hash}"
+            chain_hash = compute_hash(chain_input)
 
-    entry = {
-        "seq": seq,
-        "timestamp": timestamp,
-        "session_id": session_id,
-        "channel": channel,
-        "sender_id": sender_id,
-        "direction": direction,
-        "content": content,
-        "content_hash": content_hash,
-        "chain_hash": chain_hash,
-        "previous_hash": previous_hash,
-        "metadata": metadata or {},
-    }
+            entry = {
+                "seq": seq,
+                "timestamp": timestamp,
+                "session_id": session_id,
+                "channel": channel,
+                "sender_id": sender_id,
+                "direction": direction,
+                "content": content,
+                "content_hash": content_hash,
+                "chain_hash": chain_hash,
+                "previous_hash": previous_hash,
+                "metadata": metadata or {},
+            }
 
-    with open(chain_file, "a") as f:
-        f.write(json.dumps(entry, separators=(",", ":")) + "\n")
+            with open(chain_file, "a") as f:
+                f.write(json.dumps(entry, separators=(",", ":")) + "\n")
+        finally:
+            fcntl.flock(lf, fcntl.LOCK_UN)
 
     return entry
 

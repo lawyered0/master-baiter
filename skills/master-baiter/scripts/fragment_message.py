@@ -122,31 +122,42 @@ PROFILES = {
 ALIASES = {
     "edna": "confused_edna",
     "confused edna": "confused_edna",
+    "confused elderly": "confused_edna",
+    "elderly tech novice": "confused_edna",
     "brad": "eager_investor",
     "chad": "eager_investor",
     "eager investor": "eager_investor",
+    "the eager investor": "eager_investor",
     "diane": "lonely_heart",
     "lonely heart": "lonely_heart",
+    "the lonely heart": "lonely_heart",
+    "lonely romantic": "lonely_heart",
     "viktor": "counter_scammer",
     "counter scammer": "counter_scammer",
+    "the counter scammer": "counter_scammer",
+    "competing scammer": "counter_scammer",
     "chaos agent": "counter_scammer",
     "pat": "helpful_clueless",
     "helpful but clueless": "helpful_clueless",
+    "helpful clueless": "helpful_clueless",
     "richard": "wealthy_cautious",
     "wealthy but cautious": "wealthy_cautious",
+    "wealthy cautious": "wealthy_cautious",
 }
 
 
 def resolve_persona(name: str) -> str:
-    key = name.lower().strip().replace("-", "_")
-    if key in PROFILES:
-        return key
+    """Resolve a persona name, handling hyphens/underscores/spaces interchangeably."""
+    key = name.lower().strip().replace("-", " ").replace("_", " ")
+    key_under = key.replace(" ", "_")
+    if key_under in PROFILES:
+        return key_under
     if key in ALIASES:
         return ALIASES[key]
     for alias, profile_key in ALIASES.items():
         if alias.startswith(key):
             return profile_key
-    return key
+    return key_under
 
 
 _ABBREVS = re.compile(

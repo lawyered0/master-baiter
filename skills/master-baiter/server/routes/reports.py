@@ -60,10 +60,14 @@ def get_report(report_id: int, db: DBSession = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Report not found")
 
     # Read report file content if it exists
+    # file_path may be relative to workspace (new) or absolute (legacy)
     content = ""
     if report.file_path:
         try:
-            resolved = Path(report.file_path).resolve()
+            file_path = Path(report.file_path)
+            if not file_path.is_absolute():
+                file_path = WORKSPACE / file_path
+            resolved = file_path.resolve()
             workspace_root = str(WORKSPACE.resolve()) + os.sep
             if not str(resolved).startswith(workspace_root):
                 content = "(Invalid report file path)"
