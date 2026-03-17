@@ -6,9 +6,12 @@ session state, evidence chains, and intel data into the dashboard database.
 
 import asyncio
 import json
+import logging
 import os
 from datetime import datetime, timezone
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 from sqlalchemy.orm import Session as DBSession
 from watchfiles import awatch, Change
@@ -187,22 +190,38 @@ def full_sync():
         if sessions_dir.exists():
             for session_dir in sessions_dir.iterdir():
                 if session_dir.is_dir():
-                    sync_session(db, session_dir.name)
+                    try:
+                        sync_session(db, session_dir.name)
+                    except Exception:
+                        logger.exception("full_sync: failed to sync session %s", session_dir.name)
+                        db.rollback()
 
         evidence_dir = BASE_DIR / "evidence"
         if evidence_dir.exists():
             for ev_dir in evidence_dir.iterdir():
                 if ev_dir.is_dir():
-                    sync_evidence(db, ev_dir.name)
+                    try:
+                        sync_evidence(db, ev_dir.name)
+                    except Exception:
+                        logger.exception("full_sync: failed to sync evidence %s", ev_dir.name)
+                        db.rollback()
 
-        sync_intel(db)
+        try:
+            sync_intel(db)
+        except Exception:
+            logger.exception("full_sync: failed to sync intel")
+            db.rollback()
 
         # Sync reports
         reports_dir = BASE_DIR / "reports"
         if reports_dir.exists():
             for rpt_dir in reports_dir.iterdir():
                 if rpt_dir.is_dir():
-                    sync_reports(db, rpt_dir.name)
+                    try:
+                        sync_reports(db, rpt_dir.name)
+                    except Exception:
+                        logger.exception("full_sync: failed to sync reports %s", rpt_dir.name)
+                        db.rollback()
     finally:
         db.close()
 
@@ -216,11 +235,13 @@ async def watch_workspace(broadcast_fn=None):
         watch_dirs.append(d)
 
     async for changes in awatch(*watch_dirs):
-        db = SessionLocal()
-        try:
-            for change_type, path_str in changes:
-                path = Path(path_str)
+        for change_type, path_str in changes:
+            path = Path(path_str)
 
+            # Each file change gets its own DB session so a commit in
+            # one sync function is fully isolated from failures in the next.
+            db = SessionLocal()
+            try:
                 # Session state changed
                 if "sessions" in path.parts and path.name == "state.json":
                     session_id = path.parent.name
@@ -247,5 +268,12 @@ async def watch_workspace(broadcast_fn=None):
                     sync_reports(db, session_id)
                     if broadcast_fn:
                         await broadcast_fn("session_update", {"session_id": session_id})
-        finally:
-            db.close()
+
+            except Exception:
+                # Log and continue — a single bad file (e.g., partial
+                # write caught mid-flush) must not kill the watcher or
+                # skip remaining changes in this batch.
+                logger.exception("Failed to sync %s", path_str)
+                db.rollback()
+            finally:
+                db.close()
