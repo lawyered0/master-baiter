@@ -13,7 +13,7 @@ import json
 import math
 import random
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 # --- Persona timing profiles ---
 # Each profile: base_delay (min, max), per_char (min, max), jitter (min, max)
@@ -274,7 +274,7 @@ def calculate_delay(
     # Compute an absolute send_at timestamp so the caller can schedule
     # instead of blocking on a sleep (critical for long delays).
     now = datetime.now(timezone.utc)
-    send_at = now + __import__("datetime").timedelta(seconds=total)
+    send_at = now + timedelta(seconds=total)
 
     # Classify the delay so the caller knows whether to sleep or schedule.
     # ≤ 120s  → "sleep"    — safe to block in a tool call

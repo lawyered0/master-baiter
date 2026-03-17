@@ -7,7 +7,7 @@ if OPENCLAW_WORKSPACE is not yet set / writable.
 
 import os
 from pathlib import Path
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
 from models import Base
 
@@ -24,6 +24,13 @@ def _get_engine():
     if _engine is None:
         DB_DIR.mkdir(parents=True, exist_ok=True)
         _engine = create_engine(f"sqlite:///{DB_PATH}", echo=False)
+
+        @event.listens_for(_engine, "connect")
+        def _set_sqlite_pragma(dbapi_connection, connection_record):
+            cursor = dbapi_connection.cursor()
+            cursor.execute("PRAGMA foreign_keys=ON")
+            cursor.close()
+
     return _engine
 
 

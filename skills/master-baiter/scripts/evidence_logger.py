@@ -227,17 +227,11 @@ def main():
         metadata["delay_seconds"] = args.delay_seconds
         metadata["delay_reason"] = args.delay_reason
 
-    # Log the evidence entry
-    entry = log_evidence(
-        session_id=args.session,
-        channel=args.channel,
-        sender_id=args.sender,
-        direction=args.direction,
-        content=args.content,
-        metadata=metadata if metadata else None,
-    )
-
-    # Update session state
+    # Create/update session state FIRST so the session directory and
+    # state.json exist before the evidence chain file is written.  The
+    # dashboard file-watcher may process chain.jsonl before state.json;
+    # writing state first ensures the session row exists in the DB when
+    # the watcher tries to insert the evidence entry (FK constraint).
     update_session_state(
         session_id=args.session,
         channel=args.channel,
@@ -247,6 +241,16 @@ def main():
         persona=args.persona,
         mode=args.mode,
         delay_seconds=args.delay_seconds,
+    )
+
+    # Log the evidence entry
+    entry = log_evidence(
+        session_id=args.session,
+        channel=args.channel,
+        sender_id=args.sender,
+        direction=args.direction,
+        content=args.content,
+        metadata=metadata if metadata else None,
     )
 
     # Extract intel if provided

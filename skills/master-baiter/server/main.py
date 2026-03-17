@@ -42,7 +42,7 @@ from routes.gamification import router as gamification_router
 async def lifespan(app: FastAPI):
     """Startup: init DB, run full sync, start file watcher."""
     init_db()
-    full_sync()
+    await asyncio.to_thread(full_sync)
     watcher_task = asyncio.create_task(watch_workspace(broadcast_fn=manager.broadcast))
     yield
     watcher_task.cancel()

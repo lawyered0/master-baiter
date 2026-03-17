@@ -255,9 +255,20 @@ async def watch_workspace(broadcast_fn=None):
         watch_dirs.append(d)
 
     async for changes in awatch(*watch_dirs):
+        # Sort changes so session state.json files are processed before
+        # evidence chain.jsonl files.  With foreign keys enabled, an
+        # evidence entry can only be inserted if its session row already
+        # exists — processing sessions first guarantees that.
+        session_changes = []
+        other_changes = []
         for change_type, path_str in changes:
             path = Path(path_str)
+            if "sessions" in path.parts and path.name == "state.json":
+                session_changes.append((change_type, path_str, path))
+            else:
+                other_changes.append((change_type, path_str, path))
 
+        for change_type, path_str, path in session_changes + other_changes:
             # Each file change gets its own DB session so a commit in
             # one sync function is fully isolated from failures in the next.
             db = SessionLocal()
@@ -272,6 +283,11 @@ async def watch_workspace(broadcast_fn=None):
                 # Evidence chain updated
                 elif "evidence" in path.parts and path.name == "chain.jsonl":
                     session_id = path.parent.name
+                    # Ensure the session row exists before inserting
+                    # evidence (required now that FK constraints are on).
+                    existing = db.query(Session).filter(Session.id == session_id).first()
+                    if not existing:
+                        sync_session(db, session_id)
                     sync_evidence(db, session_id)
                     if broadcast_fn:
                         await broadcast_fn("evidence_update", {"session_id": session_id})
